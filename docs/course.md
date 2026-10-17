@@ -1,9 +1,18 @@
 # Snowflake + dbt Crash Course: Fanatics Betting & Gaming (Ops Analytics)
 
-**For:** Wadi | **Interview:** Thu Oct 22, 2026, 11:00 AM PT, with Andie George (Sr. Manager, Strategic Operations) | **Role:** Manager, Data Analyst (Ops: CX, Fraud, Payments, WFM, VIP)
-**Prepared:** Fri Oct 16, 2026 | **Builds on:** the 6-problem SQL warm-up and 5-exercise dbt drill (staging/QUALIFY dedupe, FRT SLA mart, schema tests, incremental withdrawals, fraud-rate code review). Nothing here repeats those.
+**For:** Wyatt | **Interview:** Thu Oct 22, 2026, 11:00 AM PT, with Andie George (Sr. Manager, Strategic Operations) | **Role:** Manager, Data Analyst (Ops: CX, Fraud, Payments, WFM, VIP)
+**Canonical file:** [`docs/course.md`](course.md) in this repo (`WyattCurtis327/dbt-snowflake`). Do not treat the Downloads copy as source of truth.
+**Prepared:** Fri Oct 16, 2026 (Wadi course) · **Updated:** Sat Oct 17, 2026 against the built trial
+**Builds on:** the 6-problem SQL warm-up and 5-exercise dbt drill. Nothing here repeats those.
 
-> **How to use this:** Read section 0 first (10 min). Then follow the study plan in section 5. Sections 2–3 are reference material. The exercises in section 4 are the core practice. The repo's dbt project (`sportsbook/`) follows **landing → bronze (`brz_`) → silver (`slv_`) → gold (`fct_`/`mart_`/`dt_`) → semantic (`sem_`)**. From the repo root, `python snowflake/run.py setup` then `load` is the full Snowflake cycle (infra + landing COPY + dbt build). Local DuckDB: `cd sportsbook && dbt build`. Everything marked **[Snowflake-only]** needs the trial; **[Verified on dbt-duckdb]** was built locally.
+> **How to use this:** Read section 0 first (10 min). Follow the study plan in section 5. Sections 2–3 are reference. Section 4 is the practice.
+>
+> **This repo** is landing → bronze (`brz_`) → silver (`slv_`) → gold (`fct_` / `mart_` / `dt_`) → semantic (`sem_`).
+>
+> From the repo root, one cycle stands the trial up:
+> `python snowflake/run.py setup` → `load` (or `all`). `teardown` wipes it.
+>
+> **[Verified on Snowflake]** ran on the trial (`FBG_PREP`, Sat 10/17). **[Verified on dbt-duckdb]** ran locally. **[Not executed]** is still docs-only (Time Travel, streams/tasks, `CREATE SEMANTIC VIEW`).
 
 ---
 
@@ -244,7 +253,7 @@ macros/              # to_et(), american_to_decimal(), generate_schema_name()
 ```
 Prefixes: `brz_` bronze, `slv_` silver, `fct_`/`mart_`/`dt_` gold, `sem_` semantic.
 
-On Snowflake, `python snowflake/run.py setup` creates LANDING/BRONZE/SILVER/GOLD. `load` COPYs into LANDING then runs dbt so objects exist in those schemas. `OPS_ANALYST` reads GOLD only.
+On Snowflake, `python snowflake/run.py setup` creates `LANDING` / `BRONZE` / `SILVER` / `GOLD`. `load` COPYs into `LANDING` then runs `dbt snapshot` + `dbt build --target snowflake` (seeds skipped — COPY already landed the CSVs). `OPS_ANALYST` reads GOLD only. This cycle is **[Verified on Snowflake]**.
 
 Reference: [How we structure our dbt projects](https://docs.getdbt.com/best-practices/how-we-structure/1-guide-overview). Talking point: Databricks people often call RAW "bronze." FBG's Summit talk calls staging Bronze. This project keeps landing separate so you can say both.
 
@@ -316,11 +325,14 @@ Since dbt 1.9, snapshots are configured in **YAML** ([docs](https://docs.getdbt.
 
 ## 4. Hands-on exercises (toy sportsbook)
 
-**Setup.** The project is at `sportsbook/`. Local DuckDB: `./run_all.sh` (seeds into landing, snapshots, builds, then Day 2). Snowflake trial from the repo root: `python snowflake/run.py setup` then `python snowflake/run.py load` (COPY into LANDING, then dbt snapshot + build). `teardown` drops everything. `python snowflake/run.py all` is setup + load and leaves objects built.
+**Setup.** The project is at `sportsbook/`.
 
-**Toy data:** 19 bets across NY/NJ/PA/MI/OH (one internal test account), 10 payments arriving in 2 batches, KYC events for 9 registrants, and VIP tier changes for 2 customers.
+| Backend | Command | Data |
+|---|---|---|
+| DuckDB (local) | `cd sportsbook` then `dbt build`, or `./run_all.sh` (Day 1 seed → snapshot → build, then Day 2) | **Toy seeds:** 19 bets, 10 payments, 9 KYC registrants. Exercise tables below (B02, C1, P09…) come from this set. |
+| Snowflake trial | From repo root: `python snowflake/run.py setup` then `load` (or `all`). `teardown` drops `FBG_PREP`. | **Mock landing:** 500 customers, 11,641 bets, 3,140 payments in `FBG_PREP.LANDING`. Gold `fct_bets` is 11,603 after test accounts drop. |
 
-**Local result:** `PASS=31, WARN=0, ERROR=0`. That covers 13 models, 1 snapshot, 5 seeds, 10 data tests, 2 singular tests, and 1 unit test.
+**Verified:** DuckDB `PASS=31`. Snowflake `PASS=26` (seeds excluded; `dt_pending_withdrawals` built as a dynamic table). Objects are left in `FBG_PREP` after `load`.
 
 **Toy GGR conventions** (state them aloud in an interview; real FBG definitions may differ):
 - *cash handle* = settled, non-void, non-bonus stakes
@@ -332,7 +344,7 @@ Since dbt 1.9, snapshots are configured in **YAML** ([docs](https://docs.getdbt.
 ### Exercise 1: FLATTEN parlay legs from JSON, plus the "lost by one leg" mart
 **Task:** Bets arrive with a JSON array of legs. Produce one row per leg. Then find settled parlays/SGPs that lost by exactly one leg and compute their combined decimal odds. This feeds bad-beat analysis, CX dispute volume, and promo eligibility.
 
-**Snowflake answer** [Snowflake-only, NOT executed]:
+**Snowflake answer** [Verified on Snowflake]: `slv_bet_legs` is ephemeral, so look at compiled SQL or `mart_parlay_one_leg_away` (1,716 one-leg-away parlays on the mock set).
 ```sql
 -- models/silver/slv_bet_legs.sql  (Snowflake branch)
 select
@@ -349,7 +361,7 @@ from {{ ref('brz_bets') }} b,
 ```
 **DuckDB equivalent** [Verified on dbt-duckdb]: uses `unnest(from_json(legs_json, '["JSON"]'))` with `generate_subscripts`. The same model file switches on `{% if target.type == 'snowflake' %}`.
 
-**Mart** [Verified on dbt-duckdb]:
+**Mart** [Verified on dbt-duckdb; Snowflake mock has 1,716 rows]:
 ```sql
 -- models/gold/ops/mart_parlay_one_leg_away.sql
 select b.bet_id, b.customer_id, b.state, b.bet_type, b.stake,
@@ -446,12 +458,12 @@ from {{ ref('brz_payments') }}
                       - interval '{{ var("payments_lookback_days", 7) }} days'
 {% endif %}
 ```
-**Snowflake notes** [NOT executed]:
-- On Snowflake, write `dateadd('day', -{{ var("payments_lookback_days", 7) }}, (select max(updated_at) from {{ this }}))`.
+**Snowflake notes** [lookback branch **Verified on Snowflake** in `fct_payments`; MERGE is what dbt compiled]:
+- On Snowflake the model uses `dateadd('day', -{{ var("payments_lookback_days", 7) }}, (select max(updated_at) from {{ this }}))`.
 - dbt compiles this to `MERGE INTO ... USING (tmp) ON payment_id ...`. If the source has two rows for one `payment_id` inside the window, Snowflake errors with a **nondeterministic merge**. Add `qualify row_number() over (partition by payment_id order by updated_at desc) = 1`, or use `incremental_strategy='delete+insert'`.
 - A **reconciliation test** (row count by day vs source over the last N days) catches this class of bug.
 
-**Raw Snowflake MERGE** (what dbt generates, roughly) [NOT executed]:
+**Raw Snowflake MERGE** (what dbt generates, roughly) [shape verified via dbt incremental run; not pasted from Query History]:
 ```sql
 merge into analytics.ops.fct_payments t
 using (select * from analytics.ops.fct_payments__dbt_tmp) s
@@ -501,6 +513,8 @@ from agg a left join {{ source('landing','state_tax_rates') }} t using (state)
 | OH | 2 | 10 | 10 | 100% | 0 | 10 | 20% | 2.00 | 8.00 |
 | PA | 3 | 1000 | 271.07 | 27.1% | 0 | 271.07 | 34% | 92.16 | 178.91 |
 
+The table above is the **toy DuckDB** set. On the trial mock, `GOLD.MART_STATE_HOLD_NGR` has 15 states; NY cash handle is about $209k at ~7.3% hold.
+
 **Things to call out**
 - MI hold is **null**, not 0 and not an error: the only settled MI bet was a bonus bet, so cash handle is 0 and `nullif` prevents divide-by-zero.
 - NY keeps less than half its GGR because of the 51% rate.
@@ -523,9 +537,9 @@ from {{ ref('brz_payments') }} p
 join {{ ref('brz_customers') }} c using (customer_id)
 where p.payment_type = 'withdrawal' and p.status = 'pending'
 ```
-**Status:** the Snowflake dynamic-table DDL is **NOT executed**; the query logic was **verified as a view on dbt-duckdb**. After Day 2, only P09 (C1, NY, silver, debit, $100) is pending.
+**Status:** [Verified on Snowflake] as `FBG_PREP.GOLD.DT_PENDING_WITHDRAWALS` (`target_lag = 5 minutes`). Locally it is a view. Toy Day 2 leaves only P09 pending; the mock landing set has 11 pending withdrawals.
 
-**Equivalent raw DDL** [NOT executed]:
+**Equivalent raw DDL** [dbt owns this; shown for talking points]:
 ```sql
 create or replace dynamic table analytics.ops.dt_pending_withdrawals
   target_lag = '5 minutes'
@@ -547,7 +561,7 @@ qualify hours_pending > 24 or vip_tier in ('gold','platinum');
 ### Exercise 6: KYC funnel with CONVERT_TIMEZONE, a dispatch macro, and a unit test
 **Task:** Build the onboarding funnel by state: registered → KYC submitted → passed → FTD, plus FTD-within-24h. Report minutes-to-pass and an "auto-passed" proxy (pass within 5 min of first submit). Report dates in **ET**.
 
-**Cross-database macro** [Snowflake branch NOT executed; DuckDB branch verified]:
+**Cross-database macro** [Verified on Snowflake and dbt-duckdb]: `fct_bets` / `fct_kyc_funnel` call `to_et()`; the Snowflake dispatch is `convert_timezone('UTC', 'America/New_York', ...)`.
 ```sql
 {% macro to_et(col) %}{{ return(adapter.dispatch('to_et')(col)) }}{% endmacro %}
 {% macro snowflake__to_et(col) %}convert_timezone('UTC', 'America/New_York', {{ col }}){% endmacro %}
@@ -653,15 +667,15 @@ select * from semantic_view(analytics.ops.sem_sportsbook
 - **dbt docs:** [Snowflake configs](https://docs.getdbt.com/reference/resource-configs/snowflake-configs), [incremental strategies](https://docs.getdbt.com/docs/build/incremental-strategy), [snapshots](https://docs.getdbt.com/docs/build/snapshots), [unit tests](https://docs.getdbt.com/docs/build/unit-tests), [CI](https://docs.getdbt.com/docs/deploy/continuous-integration), [Mesh](https://docs.getdbt.com/docs/mesh/about-mesh), [Semantic Layer](https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl).
 
 ### 5.2 Day-by-day
-| Day | ~60 min | Output |
+| Day | ~60 min | Status / output |
 |---|---|---|
-| **Fri 10/16 (tonight, 10 min, optional)** | Sign up for the Snowflake trial so it's ready tomorrow. | Account URL saved |
-| **Sat 10/17** | Section 1 (business + KPIs, 20 min). From the repo root: `python snowflake/run.py setup` (warehouse, `FBG_PREP` LANDING/BRONZE/SILVER/GOLD, roles). Run a query twice and confirm the result cache (15 min). | You can explain warehouses, credits, RBAC, and landing vs bronze aloud |
-| **Sun 10/18** | dbt Fundamentals: models, sources, tests, docs modules (≈45 min at 1.25x). Then 15 min on section 3.1–3.4. | Comfortable with ref/source/tests vocabulary |
-| **Mon 10/19** | `python snowflake/run.py load` — COPY into LANDING, then dbt builds `brz_`/`slv_`/`fct_`/`sem_`. Confirm Ex 1 (`LATERAL FLATTEN` in `slv_bet_legs`) and Ex 4 (hold/NGR mart) in Snowsight. | A real FLATTEN query ran in Snowflake |
-| **Tue 10/20** | **Exercises 2 + 3** on Snowflake: snapshot, then the incremental bug and fix. Try Time Travel: run a bad `UPDATE`, then `CLONE ... BEFORE(STATEMENT=>...)` (60 min). | Can whiteboard SCD2 and incremental lookback |
-| **Wed 10/21** | **Exercise 5** dynamic table on Snowflake (15 min). Skim the Summit write-up and JD again (15 min). Rehearse the 5 sound bites aloud plus 3 questions for Andie (30 min). | Ready |
-| **Thu 10/22, 10:15–10:45 AM PT** | Re-read section 0 and the KPI list. Have a SQL scratchpad open. | Calm |
+| **Fri 10/16** | Trial signup. | Done |
+| **Sat 10/17** | §1 KPIs. `python snowflake/run.py all` — warehouse, `FBG_PREP` (LANDING/BRONZE/SILVER/GOLD), COPY, dbt `PASS=26`. Result cache on TPCH. | **Done.** Inspect in Snowsight; do not rebuild unless you `teardown` |
+| **Sun 10/18** | dbt Fundamentals: models, sources, tests, docs (≈45 min at 1.25x). Then 15 min on §3.1–3.4. | Say `ref` / `source` / test / contract / landing-vs-bronze without notes |
+| **Mon 10/19** | In Snowsight, query `GOLD.MART_PARLAY_ONE_LEG_AWAY` and `GOLD.MART_STATE_HOLD_NGR`. Open compiled `slv_bet_legs` (LATERAL FLATTEN). Optional: connect dbt platform to the trial. | You can narrate Ex 1 and Ex 4 from live objects |
+| **Tue 10/20** | Ex 2 + 3 on the built objects: `SNAP_CUSTOMER_VIP`, `FCT_PAYMENTS` lookback. Then Time Travel: bad `UPDATE`, `CLONE ... BEFORE(STATEMENT=>...)`. | Whiteboard SCD2 and late-arriving data |
+| **Wed 10/21** | Ex 5: `DT_PENDING_WITHDRAWALS` already exists. Skim Summit write-up + JD. Rehearse 5 sound bites + 3 questions. | Ready |
+| **Thu 10/22, 10:15–10:45 AM PT** | Re-read §0 and the KPI list. SQL scratchpad open. | Calm |
 
 ### 5.3 Five interview sound bites (Databricks → Snowflake/dbt)
 1. **On the platform switch:** "The architecture is the same idea I run today, with separate storage and compute and a three-level governed namespace. What changes is mechanics. Unity Catalog grants become Snowflake roles and future grants, SQL warehouses become virtual warehouses billed per second, and Delta time travel becomes `AT`/`BEFORE` and zero-copy clones. Those clones are great for CI and for safe backfills of things like a payments fact."
@@ -680,14 +694,19 @@ select * from semantic_view(analytics.ops.sem_sportsbook
 ---
 
 ## Appendix: verification log
-- **Executed locally:** `run_all.sh` (dbt 1.12.6, dbt-duckdb 1.11.0, DuckDB 1.5.x). Two loads; final `PASS=31 WARN=0 ERROR=0`.
-- **Bugs found while building:**
-  1. The late-arriving P10 was dropped by the naive incremental filter (fixed with a lookback).
-  2. A unit-test mock of an ephemeral model needs `format: sql`.
-  3. The hold-% range test fired on small samples (NJ −180% before more bets were added), so it was downgraded to `warn`.
-- **Not executed (no Snowflake):**
-  - the Snowflake branch of `slv_bet_legs` (LATERAL FLATTEN) and the `snowflake__to_et` macro
-  - all `AT`/`BEFORE`/`CLONE`/`UNDROP`, stream/task, dynamic table DDL, and semantic view SQL
-  - the `dynamic_table` materialization
-  - MetricFlow queries (YAML parse-validated only)
+- **Executed locally (DuckDB):** `dbt build` / `run_all.sh` (dbt 1.13.0-b1, dbt-duckdb, DuckDB 1.5.x). Toy seeds. `PASS=31 WARN=0 ERROR=0`.
+- **Executed on Snowflake trial (Sat 10/17):** `python snowflake/run.py all` as `ACCOUNTADMIN` then `TRANSFORMER`.
+  - Landing COPY: `RAW_CUSTOMERS` 500, `RAW_BETS` 11,641, `RAW_PAYMENTS` 3,140.
+  - dbt snapshot + build `--exclude resource_type:seed`: `PASS=26`.
+  - Built: `brz_*` views, `fct_bets` (11,603), `fct_payments` (incremental merge + lookback), `fct_kyc_funnel`, marts, `dt_pending_withdrawals` (dynamic table), `sem_time_spine`, `snap_customer_vip`.
+  - `slv_bet_legs` compiled with `LATERAL FLATTEN` (ephemeral — no table).
+  - `to_et` Snowflake dispatch used by gold models.
+- **Still not executed (do Tue/Wed if you want the talking point live):**
+  - `AT` / `BEFORE` / `CLONE` / `UNDROP`
+  - stream / task DDL
+  - `CREATE SEMANTIC VIEW` / MetricFlow queries (YAML parse-validated only)
+- **Bugs found while building the toy project:**
+  1. Late-arriving P10 dropped by a naive incremental filter (fixed with a lookback).
+  2. Unit-test mock of an ephemeral model needs `format: sql`.
+  3. Hold-% range test fired on small samples (NJ −180% before more bets were added), so it was downgraded to `warn`.
 - **Facts:** every company and market number above is linked to its source. FBG is private, so revenue and loss figures are executive statements or third-party estimates. Operator market shares come from aggregators of state-reported data. The Summit details come from a third-party (French) write-up of the talk, not an FBG publication.

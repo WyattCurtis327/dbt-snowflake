@@ -8,7 +8,7 @@ sportsbook/     dbt project
   models/bronze/    brz_* views
   models/silver/    slv_* joins / business rules
   models/gold/      fct_ / mart_ / dt_ / sem_*
-docs/course.md  course notes
+docs/course.md  living crash course (keep edits here, not in Downloads)
 snowflake/      setup, load (landing + dbt), teardown
 data/           CSVs for Snowflake PUT/COPY
 STUDY.md        this week's plan

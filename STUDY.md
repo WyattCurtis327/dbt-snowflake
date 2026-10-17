@@ -1,28 +1,26 @@
 # Study plan — interview Thu Oct 22
 
-Course source: [docs/course.md](docs/course.md) §5.
+Living course: [docs/course.md](docs/course.md). That file is the source of truth — not the copy in Downloads.
 
-## Today — Sat 10/17 (~60 min)
+## Already done — Sat 10/17
 
-1. Read course **§1** (business + KPI language): handle → hold % → GGR → promo cost → NGR → tax. 20 min.
-2. If the trial is live, from the repo root: `python snowflake/run.py setup` then `python snowflake/run.py load`. That creates `OPS_XS_WH`, `FBG_PREP` (LANDING/BRONZE/SILVER/GOLD), loads CSVs into landing, and builds the dbt medallion (`brz_` → `slv_` → `fct_`/`mart_`/`sem_`). Start over with `python snowflake/run.py teardown`. Shortcut: `python snowflake/run.py all`. 25 min.
-3. Run any `SELECT` twice. Confirm **result cache** in Query Profile (no warehouse credits on the second hit). 15 min.
-
-You should be able to explain warehouses, credits, and RBAC aloud.
+- Trial is up. `python snowflake/run.py all` created `OPS_XS_WH`, `FBG_PREP` (LANDING / BRONZE / SILVER / GOLD), loaded mock CSVs, built dbt (`PASS=26`).
+- Inspect in Snowsight: `FBG_PREP.LANDING`, `.BRONZE`, `.GOLD`. Do not rebuild unless you run `teardown`.
+- Result cache: run any `SELECT` twice; second hit should show 0 bytes scanned.
 
 ## Rest of the week
 
 | When | Do this | Done when |
 |---|---|---|
-| **Sun 10/18** | dbt Fundamentals: models, sources, tests, docs (~45 min at 1.25x). Skim course §3.1–3.4. | You can say `ref` / `source` / test / contract without notes |
-| **Mon 10/19** | Connect dbt platform to the trial. Upload `data/` CSVs with `snowflake/load_mock_data.sql`. Port **Ex 1** (`LATERAL FLATTEN`) and **Ex 4** (hold/NGR mart). | A real FLATTEN query ran in Snowflake |
-| **Tue 10/20** | Port **Ex 2** (VIP snapshot) and **Ex 3** (incremental lookback). Break a table, then `CLONE … BEFORE(STATEMENT=>…)`. | You can whiteboard SCD2 and late-arriving data |
-| **Wed 10/21** | Port **Ex 5** dynamic table. Re-read §0 and the JD. Rehearse the 5 sound bites + 3 questions. | Ready |
+| **Sun 10/18** | dbt Fundamentals: models, sources, tests, docs (~45 min at 1.25x). Skim course §3.1–3.4. | You can say `ref` / `source` / test / contract / landing-vs-bronze without notes |
+| **Mon 10/19** | Query `GOLD.MART_PARLAY_ONE_LEG_AWAY` and `GOLD.MART_STATE_HOLD_NGR`. Narrate `LATERAL FLATTEN` in `slv_bet_legs`. Optional: hook dbt platform to the trial. | You can walk Ex 1 and Ex 4 from live objects |
+| **Tue 10/20** | Ex 2 + 3: `SNAP_CUSTOMER_VIP`, `FCT_PAYMENTS` lookback. Break a table, then `CLONE … BEFORE(STATEMENT=>…)`. | You can whiteboard SCD2 and late-arriving data |
+| **Wed 10/21** | Ex 5 is already `DT_PENDING_WITHDRAWALS`. Re-read §0 and the JD. Rehearse the 5 sound bites + 3 questions. | Ready |
 | **Thu 10/22 10:15 PT** | Re-read §0 and the KPI list. SQL scratchpad open. | Calm |
 
-## Exercises already built (DuckDB)
+## Exercises (already built)
 
-Rehearse these in `sportsbook/`. Do not rebuild them from scratch.
+Rehearse in Snowsight (`FBG_PREP.GOLD`) or locally with DuckDB. Do not rebuild from scratch.
 
 | Ex | Point | Model |
 |---|---|---|
@@ -30,9 +28,11 @@ Rehearse these in `sportsbook/`. Do not rebuild them from scratch.
 | 2 | SCD2 VIP; join at bet time, not current tier | `snap_customer_vip`, `fct_bets_with_vip_tier` |
 | 3 | Incremental MERGE + lookback or P10 disappears | `fct_payments`, `mart_payments_daily` |
 | 4 | Hold / NGR / tax; exclude test accounts | `fct_bets`, `mart_state_hold_ngr` |
-| 5 | Dynamic table as a view locally | `dt_pending_withdrawals` |
+| 5 | Dynamic table (5 min lag) | `dt_pending_withdrawals` |
 | 6 | KYC funnel in ET; `to_et` dispatch macro | `fct_kyc_funnel`, `mart_kyc_funnel_by_state` |
 | 7 | Metrics once (MetricFlow YAML + Snowflake semantic view SQL) | `sem_bets`, `sem_time_spine` |
+
+Toy DuckDB tables in the course (B02, C1, P09) are the **small seed set**. The trial mock is 500 customers / 11,641 bets — same models, different grain counts.
 
 ## Sound bites (say these, do not read them)
 
