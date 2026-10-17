@@ -1,0 +1,6 @@
+state,osb_tax_rate,promo_deductible_toy
+NY,0.51,false
+NJ,0.1975,true
+PA,0.34,true
+MI,0.084,true
+OH,0.20,true

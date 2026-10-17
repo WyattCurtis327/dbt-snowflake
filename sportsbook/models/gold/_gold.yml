@@ -1,0 +1,53 @@
+version: 2
+models:
+  - name: fct_bets
+    description: One row per bet (test accounts excluded). Grain = bet_id.
+    columns:
+      - name: bet_id
+        data_tests: [unique, not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['settled', 'void', 'open']
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('brz_customers')
+                field: customer_id
+  - name: fct_payments
+    columns:
+      - name: payment_id
+        data_tests: [unique, not_null]
+  - name: mart_state_hold_ngr
+    columns:
+      - name: state
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: test_fct_bets_ggr_and_bonus_logic
+    description: "Cash GGR excludes bonus/void/open bets; bonus cost = bonus winnings; test accounts dropped."
+    model: fct_bets
+    given:
+      - input: ref('brz_bets')
+        rows:
+          - {bet_id: X1, customer_id: A, state: NY, placed_at_utc: '2026-10-10 00:00:00', settled_at_utc: '2026-10-10 03:00:00', bet_type: single, status: settled, is_bonus_bet: false, stake: 100, payout: 0,   legs_json: '[{"leg":1}]'}
+          - {bet_id: X2, customer_id: A, state: NY, placed_at_utc: '2026-10-10 00:00:00', settled_at_utc: '2026-10-10 03:00:00', bet_type: single, status: settled, is_bonus_bet: true,  stake: 50,  payout: 75,  legs_json: '[{"leg":1}]'}
+          - {bet_id: X3, customer_id: A, state: NY, placed_at_utc: '2026-10-10 00:00:00', settled_at_utc: '2026-10-10 03:00:00', bet_type: single, status: void,    is_bonus_bet: false, stake: 20,  payout: 20,  legs_json: '[{"leg":1}]'}
+          - {bet_id: X4, customer_id: T, state: NY, placed_at_utc: '2026-10-10 00:00:00', settled_at_utc: '2026-10-10 03:00:00', bet_type: single, status: settled, is_bonus_bet: false, stake: 999, payout: 0,   legs_json: '[{"leg":1}]'}
+      - input: ref('brz_customers')
+        rows:
+          - {customer_id: A, is_test_account: false}
+          - {customer_id: T, is_test_account: true}
+      - input: ref('slv_bet_legs')   # ephemeral model -> must be mocked with format: sql
+        format: sql
+        rows: |
+          select 'X1' as bet_id, 0 as leg_index union all
+          select 'X2', 0 union all
+          select 'X3', 0
+    expect:
+      rows:
+        - {bet_id: X1, cash_handle: 100, cash_ggr: 100, bonus_cost: 0}
+        - {bet_id: X2, cash_handle: 0,   cash_ggr: 0,   bonus_cost: 75}
+        - {bet_id: X3, cash_handle: 0,   cash_ggr: 0,   bonus_cost: 0}

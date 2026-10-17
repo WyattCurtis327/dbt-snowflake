@@ -1,0 +1,9 @@
+payment_id,customer_id,payment_type,method,amount,status,requested_at,completed_at,updated_at
+P01,C1,deposit,card,200,completed,2026-10-08 12:00:00,2026-10-08 12:00:05,2026-10-08 12:00:05
+P02,C2,deposit,paypal,100,completed,2026-10-09 23:00:00,2026-10-09 23:00:10,2026-10-09 23:00:10
+P03,C3,deposit,ach,2000,completed,2026-10-09 15:00:00,2026-10-09 15:01:00,2026-10-09 15:01:00
+P04,C4,deposit,card,50,failed,2026-10-11 16:00:00,,2026-10-11 16:00:03
+P05,C2,withdrawal,paypal,150,pending,2026-10-14 09:00:00,,2026-10-14 09:00:00
+P06,C3,withdrawal,ach,700,pending,2026-10-14 10:00:00,,2026-10-14 10:00:00
+P07,C6,withdrawal,debit,400,completed,2026-10-13 18:00:00,2026-10-14 02:00:00,2026-10-14 02:00:00
+P08,C5,deposit,card,40,completed,2026-10-12 15:00:00,2026-10-12 15:00:04,2026-10-12 15:00:04

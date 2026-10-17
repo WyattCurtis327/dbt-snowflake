@@ -1,0 +1,19 @@
+sportsbook:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: sportsbook.duckdb
+      threads: 1
+    snowflake:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD', '') }}"
+      authenticator: "{{ env_var('SNOWFLAKE_AUTHENTICATOR', 'snowflake') }}"
+      role: "{{ env_var('SNOWFLAKE_DBT_ROLE', 'TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'OPS_XS_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'FBG_PREP') }}"
+      schema: gold
+      threads: 4
+      client_session_keep_alive: true

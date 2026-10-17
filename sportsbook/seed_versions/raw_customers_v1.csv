@@ -1,0 +1,9 @@
+customer_id,state,signup_ts_utc,vip_tier,is_test_account,updated_at
+C1,NY,2026-10-01 13:00:00,bronze,false,2026-10-01 13:00:00
+C2,NJ,2026-10-02 02:30:00,bronze,false,2026-10-02 02:30:00
+C3,PA,2026-10-02 16:00:00,gold,false,2026-10-02 16:00:00
+C4,MI,2026-10-03 18:00:00,bronze,false,2026-10-03 18:00:00
+C5,OH,2026-10-04 12:00:00,bronze,false,2026-10-04 12:00:00
+C6,NY,2026-10-04 03:30:00,silver,false,2026-10-04 03:30:00
+C7,NJ,2026-10-04 09:00:00,bronze,true,2026-10-04 09:00:00
+C8,PA,2026-10-05 14:00:00,bronze,false,2026-10-05 14:00:00

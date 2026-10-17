@@ -1,0 +1,33 @@
+name: sportsbook
+version: "1.0.0"
+profile: sportsbook
+model-paths: ["models"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+# Medallion (FBG-style, with an explicit landing zone):
+#   landing (sources / seeds) → bronze (brz_) → silver (slv_) → gold (fct_/mart_/dt_) → semantic (sem_)
+# Landing is PUT/COPY (or dbt seed). It is not bronze.
+models:
+  sportsbook:
+    bronze:
+      +schema: bronze
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: ephemeral
+    gold:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  sportsbook:
+    +schema: landing
+    raw_bets:
+      +column_types: {legs_json: varchar}
+
+snapshots:
+  sportsbook:
+    +schema: gold

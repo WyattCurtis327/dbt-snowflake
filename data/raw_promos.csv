@@ -1,0 +1,7 @@
+promo_id,promo_name,promo_type,eligible_states,start_at_utc,end_at_utc,token_amount,max_tokens_per_customer,min_american_odds,notes
+PR001,"MOCK Welcome: Bet $5, Get $100 in Bonus Bets (2 x $50)",bonus_bet,ALL,2026-08-01 00:00:00,2026-12-31 23:59:59,50,2,-500,New customers after first deposit; tokens expire in 7 days
+PR002,MOCK NFL No-Sweat SGP (refund up to $25 in Bonus Bets),bonus_bet,ALL,2026-09-10 00:00:00,2026-12-31 23:59:59,25,1,100,Weekly opt-in; refund if SGP loses
+PR003,MOCK Deposit Match 50% up to $250 in Bonus Bets,deposit_match,NJ|PA|MI|IL,2026-09-01 00:00:00,2026-10-31 23:59:59,250,1,-300,One-time; credited as a single bonus-bet token
+PR004,MOCK VIP Host Reload,bonus_bet,ALL,2026-08-01 00:00:00,2026-12-31 23:59:59,500,4,-1000,Gold/platinum only; host discretion
+PR005,MOCK FanCash 5% Back on NFL Parlays,fancash,ALL,2026-09-10 00:00:00,2026-10-31 23:59:59,0,0,100,FanCash credited at settlement; not a bet token
+PR006,MOCK MLB Postseason Bonus Bet $10,bonus_bet,NY|NJ|PA|OH|MA,2026-09-29 00:00:00,2026-10-31 23:59:59,10,1,-200,Opt-in

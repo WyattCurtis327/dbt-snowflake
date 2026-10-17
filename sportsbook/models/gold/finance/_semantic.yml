@@ -1,0 +1,67 @@
+models:
+  - name: sem_time_spine
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+
+semantic_models:
+  - name: sem_bets
+    model: ref('fct_bets')
+    defaults:
+      agg_time_dimension: settled_date_et
+    entities:
+      - name: bet
+        type: primary
+        expr: bet_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: settled_date_et
+        type: time
+        type_params:
+          time_granularity: day
+      - name: state
+        type: categorical
+      - name: bet_type
+        type: categorical
+    measures:
+      - name: cash_handle
+        agg: sum
+      - name: cash_ggr
+        agg: sum
+      - name: bonus_cost
+        agg: sum
+
+metrics:
+  - name: cash_handle
+    label: Cash handle
+    type: simple
+    type_params:
+      measure: cash_handle
+  - name: cash_ggr
+    label: Cash GGR
+    type: simple
+    type_params:
+      measure: cash_ggr
+  - name: hold_pct
+    label: Hold %
+    type: ratio
+    type_params:
+      numerator: cash_ggr
+      denominator: cash_handle
+  - name: ngr
+    label: NGR (GGR - bonus cost)
+    type: derived
+    type_params:
+      expr: cash_ggr - bonus_cost
+      metrics:
+        - name: cash_ggr
+        - name: bonus_cost
+  - name: bonus_cost
+    label: Bonus cost
+    type: simple
+    type_params:
+      measure: bonus_cost

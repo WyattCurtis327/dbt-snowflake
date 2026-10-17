@@ -1,0 +1,50 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# dbt
+target/
+logs/
+dbt_packages/
+dbt_internal_packages/
+package-lock.yml
+**/.user.yml
+
+# Local warehouse / run artifacts
+*.duckdb
+*.duckdb.wal
+*.log
+
+# Credentials — keep these out of the public remote
+.env
+.env.*
+!.env.example
+profiles.yml
+!sportsbook/profiles.yml
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+
+# Leftover folder from the earlier reorg (empty, often file-locked)
+fanatics_prep/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~

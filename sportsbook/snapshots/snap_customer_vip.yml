@@ -1,0 +1,8 @@
+snapshots:
+  - name: snap_customer_vip
+    relation: ref('raw_customers')
+    config:
+      unique_key: customer_id
+      strategy: timestamp
+      updated_at: updated_at
+      dbt_valid_to_current: "cast('9999-12-31' as timestamp)"

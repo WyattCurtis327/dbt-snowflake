@@ -1,0 +1,16 @@
+state,osb_tax_rate,promo_deductible_toy,tax_basis,rate_note
+NY,0.51,false,ggr,mobile 51% of GGR; promos not deductible
+NJ,0.1975,true,ggr,online sports rate after 2025 increase
+PA,0.34,true,ggr,34% state; ignores 2% local share (36% all-in)
+IL,0.25,false,ggr,SIMPLIFIED: real IL is graduated 20-40% of AGR plus a per-wager fee
+MI,0.084,true,ggr,
+OH,0.2,true,ggr,
+MA,0.2,false,ggr,mobile rate
+AZ,0.1,true,ggr,online rate
+TN,0.0185,false,handle,TN taxes HANDLE not GGR; course mart multiplies GGR -> extension exercise
+VA,0.15,true,ggr,
+CO,0.1,false,ggr,free-bet deduction phased out
+MD,0.2,true,ggr,mobile rate after 2025 increase
+NC,0.18,false,ggr,
+KY,0.1425,true,ggr,online rate
+CT,0.1375,false,ggr,online rate
