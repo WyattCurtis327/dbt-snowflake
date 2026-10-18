@@ -38,4 +38,4 @@ copy .env.example .env
 
 Details: [snowflake/README.md](snowflake/README.md).
 
-dbt platform (Cloud): do not use Partner Connect. Connect this GitHub repo with subdirectory `sportsbook` and warehouse `FBG_PREP` / `OPS_XS_WH`. Steps: [docs/dbt-cloud.md](docs/dbt-cloud.md).
+dbt platform (Cloud): do not use Partner Connect. Repo `WyattCurtis327/dbt-snowflake`, subdirectory `sportsbook`, Snowflake `FBG_PREP` / `OPS_XS_WH` / `TRANSFORMER`. Job command: `dbt build --selector snowflake_deploy`. Verified Success on Fusion v2 Stable. Steps: [docs/dbt-cloud.md](docs/dbt-cloud.md).

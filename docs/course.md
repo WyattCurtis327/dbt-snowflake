@@ -264,8 +264,9 @@ Reference: [How we structure our dbt projects](https://docs.getdbt.com/best-prac
 - **model versions**
 
 ### 3.2 Sources and refs
-- **`source()`** declares raw tables and enables **source freshness** (`loaded_at_field` + `warn_after`/`error_after`), so you know before Andie does that the CX ticket feed is stale.
-  - Snowflake caveat: freshness without a `loaded_at_field` uses `LAST_ALTERED`, which also changes on DDL and background maintenance ([dbt docs](https://docs.getdbt.com/reference/resource-configs/snowflake-configs)). Always set a `loaded_at_field`.
+- **`source()`** declares raw tables and can enable **source freshness** (`loaded_at_field` + `warn_after`/`error_after`).
+  - Snowflake caveat: freshness without a `loaded_at_field` uses `LAST_ALTERED`, which also changes on DDL and background maintenance ([dbt docs](https://docs.getdbt.com/reference/resource-configs/snowflake-configs)).
+  - **This project's Cloud job runs Fusion v2**, which treats `loaded_at_field` as an unused key (`UnusedConfigKey` / `dbt1060`) and fails parse. Landing sources stay column-free; freshness is off on `sportsbook prod`. Re-add the field only if the environment moves off Fusion v2.
 - **`ref()`** builds the DAG and handles environment-aware schemas (dev vs prod vs CI).
 
 ### 3.3 Materializations, mapped to sportsbook models
@@ -300,7 +301,7 @@ Since dbt 1.9, snapshots are configured in **YAML** ([docs](https://docs.getdbt.
 - If the source keeps its own history (e.g., a `vip_tier_changes` event table), build SCD2 from the events with window functions instead.
 
 ### 3.6 Semantic layer and metrics: three options to talk about
-1. **dbt Semantic Layer (MetricFlow):** `semantic_models` (entities, dimensions, measures) plus `metrics` (simple, ratio, derived, cumulative, conversion) ([docs](https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl)). Example YAML is in Exercise 7; it was **parse-validated** locally but not queried.
+1. **dbt Semantic Layer (latest YAML spec):** `semantic_model` + column-level entities/dimensions + `type: simple` metrics on the model (replaces top-level `semantic_models` / measures / `type_params`). Fusion v2 logs `SemanticModelDeprecated` (`dbt1157`) if you keep the legacy spec. Example is in Exercise 7 and `models/gold/_gold.yml`. Parse-validated; MetricFlow queries not run.
 2. **Snowflake semantic views,** which FBG uses under Snowflake Intelligence ([docs](https://docs.snowflake.com/en/user-guide/views-semantic/overview)). They can be managed from dbt with the `dbt_semantic_view` package.
 3. **BI-layer metrics** (Sigma/Tableau calcs). This is where FBG *came from*, and the Summit talk was about moving logic *out of* Tableau.
 
@@ -332,7 +333,7 @@ Since dbt 1.9, snapshots are configured in **YAML** ([docs](https://docs.getdbt.
 | DuckDB (local) | `cd sportsbook` then `dbt build`, or `./run_all.sh` (Day 1 seed → snapshot → build, then Day 2) | **Toy seeds:** 19 bets, 10 payments, 9 KYC registrants. Exercise tables below (B02, C1, P09…) come from this set. |
 | Snowflake trial | From repo root: `python snowflake/run.py setup` then `load` (or `all`). `teardown` drops `FBG_PREP`. | **Mock landing:** 500 customers, 11,641 bets, 3,140 payments in `FBG_PREP.LANDING`. Gold `fct_bets` is 11,603 after test accounts drop. |
 
-**Verified:** DuckDB `PASS=31`. Snowflake `PASS=26` (seeds excluded; `dt_pending_withdrawals` built as a dynamic table). Objects are left in `FBG_PREP` after `load`.
+**Verified:** DuckDB `PASS=31`. Local Snowflake `PASS=26` (seeds excluded; `dt_pending_withdrawals` built as a dynamic table). dbt platform job `sportsbook prod` (`dbt build --selector snowflake_deploy`, Fusion v2 Stable) **Success**: 15 models / 10 tests / 1 snapshot / 1 unit test → 25 success, 1 warn, 1 no-op. Objects stay in `FBG_PREP` after `load` and after Cloud rebuilds.
 
 **Toy GGR conventions** (state them aloud in an interview; real FBG definitions may differ):
 - *cash handle* = settled, non-void, non-bonus stakes
@@ -607,29 +608,30 @@ unit_tests:
 **Talking point:** `DATEDIFF('minute', ...)` counts boundaries. 13:05:59 → 13:06:00 = "1 minute." For SLA tiers near the threshold, use seconds.
 
 ### Exercise 7: Metrics defined once (dbt Semantic Layer + Snowflake semantic view)
-**dbt Semantic Layer YAML** [parse-validated with `dbt parse` on dbt 1.12; MetricFlow queries NOT executed]:
+**dbt Semantic Layer YAML (latest spec)** [on `fct_bets` in `_gold.yml`; parse-validated locally and on Fusion v2; MetricFlow queries NOT executed]:
 ```yaml
-semantic_models:
-  - name: sem_bets
-    model: ref('fct_bets')
-    defaults: {agg_time_dimension: settled_date_et}
-    entities:
-      - {name: bet, type: primary, expr: bet_id}
-      - {name: customer, type: foreign, expr: customer_id}
-    dimensions:
-      - {name: settled_date_et, type: time, type_params: {time_granularity: day}}
-      - {name: state, type: categorical}
-      - {name: bet_type, type: categorical}
-    measures:
-      - {name: cash_handle, agg: sum}
-      - {name: cash_ggr, agg: sum}
-      - {name: bonus_cost, agg: sum}
-metrics:
-  - {name: hold_pct, label: "Hold %", type: ratio, type_params: {numerator: cash_ggr, denominator: cash_handle}}
-  - name: ngr
-    type: derived
-    type_params: {expr: cash_ggr - bonus_cost, metrics: [{name: cash_ggr}, {name: bonus_cost}]}
-# (+ simple metrics cash_handle, cash_ggr, bonus_cost and a sem_time_spine model - see _semantic.yml)
+models:
+  - name: fct_bets
+    semantic_model:
+      enabled: true
+      name: sem_bets
+    agg_time_dimension: settled_date_et
+    columns:
+      - {name: bet_id, entity: {type: primary, name: bet}}
+      - {name: customer_id, entity: {type: foreign, name: customer}}
+      - {name: settled_date_et, granularity: day, dimension: {type: time}}
+      - {name: state, dimension: {type: categorical}}
+      - {name: bet_type, dimension: {type: categorical}}
+    metrics:
+      - {name: cash_handle, type: simple, agg: sum, expr: cash_handle}
+      - {name: cash_ggr, type: simple, agg: sum, expr: cash_ggr}
+      - {name: bonus_cost, type: simple, agg: sum, expr: bonus_cost}
+      - {name: hold_pct, type: ratio, numerator: cash_ggr, denominator: cash_handle}
+      - name: ngr
+        type: derived
+        expr: cash_ggr - bonus_cost
+        input_metrics: [{name: cash_ggr}, {name: bonus_cost}]
+# time spine: models/gold/finance/_semantic.yml (time_spine.standard_granularity_column)
 ```
 **Snowflake semantic view** [Snowflake-only, NOT executed]. This is what FBG layers under Snowflake Intelligence:
 ```sql
@@ -670,9 +672,9 @@ select * from semantic_view(analytics.ops.sem_sportsbook
 | Day | ~60 min | Status / output |
 |---|---|---|
 | **Fri 10/16** | Trial signup. | Done |
-| **Sat 10/17** | §1 KPIs. `python snowflake/run.py all` — warehouse, `FBG_PREP` (LANDING/BRONZE/SILVER/GOLD), COPY, dbt `PASS=26`. Result cache on TPCH. | **Done.** Inspect in Snowsight; do not rebuild unless you `teardown` |
+| **Sat 10/17** | §1 KPIs. `python snowflake/run.py all` — warehouse, `FBG_PREP` (LANDING/BRONZE/SILVER/GOLD), COPY, dbt `PASS=26`. Cloud job `sportsbook prod` Success on Fusion v2. Result cache on TPCH. | **Done.** Inspect in Snowsight / Cloud run; do not rebuild unless you `teardown` |
 | **Sun 10/18** | dbt Fundamentals: models, sources, tests, docs (≈45 min at 1.25x). Then 15 min on §3.1–3.4. | Say `ref` / `source` / test / contract / landing-vs-bronze without notes |
-| **Mon 10/19** | In Snowsight, query `GOLD.MART_PARLAY_ONE_LEG_AWAY` and `GOLD.MART_STATE_HOLD_NGR`. Open compiled `slv_bet_legs` (LATERAL FLATTEN). Optional: connect dbt platform to the trial. | You can narrate Ex 1 and Ex 4 from live objects |
+| **Mon 10/19** | In Snowsight, query `GOLD.MART_PARLAY_ONE_LEG_AWAY` and `GOLD.MART_STATE_HOLD_NGR`. Open compiled `slv_bet_legs` (LATERAL FLATTEN). Cloud job is already connected — open the latest Success run if you want to show it. | You can narrate Ex 1 and Ex 4 from live objects |
 | **Tue 10/20** | Ex 2 + 3 on the built objects: `SNAP_CUSTOMER_VIP`, `FCT_PAYMENTS` lookback. Then Time Travel: bad `UPDATE`, `CLONE ... BEFORE(STATEMENT=>...)`. | Whiteboard SCD2 and late-arriving data |
 | **Wed 10/21** | Ex 5: `DT_PENDING_WITHDRAWALS` already exists. Skim Summit write-up + JD. Rehearse 5 sound bites + 3 questions. | Ready |
 | **Thu 10/22, 10:15–10:45 AM PT** | Re-read §0 and the KPI list. SQL scratchpad open. | Calm |

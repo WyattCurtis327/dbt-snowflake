@@ -2,6 +2,8 @@
 
 Do **not** use Snowflake Partner Connect. That creates a managed jaffle_shop repo and new databases. This project already lives on GitHub and already has data in `FBG_PREP`.
 
+**Verified** Sat 10/17/2026 on Developer tenant `https://rc086.us1.dbt.com/` (account Loandepot, 1-project max). Project `sportsbook` replaced the old Databricks Analytics project. Latest prod job: **Success** on SHA `72fa753` (`dbt build --selector snowflake_deploy`).
+
 Official background: [Quickstart for dbt and Snowflake](https://docs.getdbt.com/guides/snowflake) (manual connect) and [Connect to GitHub](https://docs.getdbt.com/docs/cloud/git/connect-github).
 
 ## 0. Prereq
@@ -32,11 +34,11 @@ Install the dbt GitHub App on your user (or org) and grant it **WyattCurtis327/d
 
    | Field | Value |
    |---|---|
-   | Account | The locator in `~/.dbt/profiles.yml` (looks like `XXXXXX-XXXXXXX`). Do **not** append `.snowflakecomputing.com`. |
+   | Account | Hyphenated org-account in `~/.dbt/profiles.yml` (looks like `XXXXXX-XXXXXXX`). Do **not** append `.snowflakecomputing.com`. The numeric locator (`IU15163`) is the same account — do not mix them. |
    | Database | `FBG_PREP` |
    | Warehouse | `OPS_XS_WH` |
    | Role | `TRANSFORMER` |
-   | Auth | Username/password (same user as the trial) or SSO if you switched to browser auth |
+   | Auth | Username/password for now (same user as the trial). Snowflake ends password auth for all users on **2026-08-31** — switch the Cloud connection to key-pair (deploy) or OAuth (dev) before then. Never commit the password. |
 
 3. **Test connection** → Save.
 4. **Your profile → Credentials → sportsbook** (dev environment):
@@ -55,7 +57,7 @@ Install the dbt GitHub App on your user (or org) and grant it **WyattCurtis327/d
 ## 4. One development run
 
 1. **Start developing in the Studio IDE.**
-2. Confirm you see `models/bronze`, `models/silver`, `models/gold`.
+2. Confirm you see `models/bronze`, `models/silver`, `models/gold/finance`, `models/gold/ops`.
 3. In the command bar:
 
    ```text
@@ -65,6 +67,19 @@ Install the dbt GitHub App on your user (or org) and grant it **WyattCurtis327/d
    Or `dbt build` — seeds are disabled when `target.type == snowflake`, so they cannot overwrite landing.
 
 ## 5. Deploy (production job)
+
+This tenant already has:
+
+| Setting | Value |
+|---|---|
+| Project | `sportsbook` |
+| Repo | `WyattCurtis327/dbt-snowflake` |
+| Subdirectory | `sportsbook` |
+| Environment | Production · dbt **v2 Stable** (Fusion 2.0.8) |
+| Job | `sportsbook prod` |
+| Command | `dbt build --selector snowflake_deploy` |
+| Target name | `default` (logic keys off `target.type`, not `target.name`) |
+| Source freshness | Off (Fusion v2 rejects `loaded_at_field` as `UnusedConfigKey`) |
 
 1. **Deploy → Environments → + Create environment.**
    - Type: **Deployment** / Production
@@ -79,12 +94,18 @@ Install the dbt GitHub App on your user (or org) and grant it **WyattCurtis327/d
      ```
 
    - Trigger: **Run now** first. Then add a schedule if you want (daily is enough for interview prep).
-3. Open the run. You want green models/tests, no `seed` steps.
+3. Open the run. You want green models/tests, **no `seed` steps**.
 
-After a successful job, Snowsight still shows `FBG_PREP.LANDING` (COPY), `BRONZE` (`brz_*` views), `GOLD` (`fct_*` / `mart_*` / `dt_*` / `sem_*`).
+Expected Fusion summary on a clean clone of current `main`: **15 models | 10 data tests | 1 snapshot | 1 unit test** → 25 success, 1 warn (`dt_pending_withdrawals` no-op config change on reruns), 1 no-op (`slv_bet_legs` ephemeral).
+
+After a successful job, Snowsight shows `FBG_PREP.LANDING` (COPY), `BRONZE` (`brz_*` views), `GOLD` (`fct_*` / `mart_*` / `dt_*` / `sem_time_spine` / `snap_customer_vip`). Silver `slv_bet_legs` is ephemeral and will not appear as an object.
+
+Finance metrics (`cash_handle`, `cash_ggr`, `bonus_cost`, `hold_pct`, `ngr`) are declared on `fct_bets` with the [latest Semantic Layer YAML spec](https://docs.getdbt.com/docs/build/latest-metrics-spec). They are not a Snowflake `SEMANTIC VIEW` — that SQL is still Exercise 7 stretch / `[Not executed]`.
 
 ## 6. What not to do
 
 - Do not `dbt seed` on Snowflake.
 - Do not point the Cloud connection at `SNOWFLAKE_LEARNING_DB` / `SNOWFLAKE_LEARNING_WH`.
 - Do not let Partner Connect create `PC_DBT_DB` and a managed repo, then try to merge that with this project.
+- Do not put `{{ }}` around `source()` / `ref()` in Fusion snapshot YAML.
+- Do not re-add `loaded_at_field` on landing sources while the job runs Fusion v2 — it is a hard parse error (`dbt1060`).

@@ -5,6 +5,7 @@ Living course: [docs/course.md](docs/course.md). That file is the source of trut
 ## Already done — Sat 10/17
 
 - Trial is up. `python snowflake/run.py all` created `OPS_XS_WH`, `FBG_PREP` (LANDING / BRONZE / SILVER / GOLD), loaded mock CSVs, built dbt (`PASS=26`).
+- dbt platform job `sportsbook prod` is live at `rc086.us1.dbt.com`: repo subdirectory `sportsbook`, command `dbt build --selector snowflake_deploy`, Fusion v2 Stable. Latest run **Success** (25 success / 1 warn / 1 no-op; seeds skipped).
 - Inspect in Snowsight: `FBG_PREP.LANDING`, `.BRONZE`, `.GOLD`. Do not rebuild unless you run `teardown`.
 - Result cache: run any `SELECT` twice; second hit should show 0 bytes scanned.
 
@@ -13,7 +14,7 @@ Living course: [docs/course.md](docs/course.md). That file is the source of trut
 | When | Do this | Done when |
 |---|---|---|
 | **Sun 10/18** | dbt Fundamentals: models, sources, tests, docs (~45 min at 1.25x). Skim course §3.1–3.4. | You can say `ref` / `source` / test / contract / landing-vs-bronze without notes |
-| **Mon 10/19** | Query `GOLD.MART_PARLAY_ONE_LEG_AWAY` and `GOLD.MART_STATE_HOLD_NGR`. Narrate `LATERAL FLATTEN` in `slv_bet_legs`. Optional: hook dbt platform to the trial. | You can walk Ex 1 and Ex 4 from live objects |
+| **Mon 10/19** | Query `GOLD.MART_PARLAY_ONE_LEG_AWAY` and `GOLD.MART_STATE_HOLD_NGR`. Narrate `LATERAL FLATTEN` in `slv_bet_legs`. Cloud job is already hooked — open the latest Success run if you want to show it. | You can walk Ex 1 and Ex 4 from live objects |
 | **Tue 10/20** | Ex 2 + 3: `SNAP_CUSTOMER_VIP`, `FCT_PAYMENTS` lookback. Break a table, then `CLONE … BEFORE(STATEMENT=>…)`. | You can whiteboard SCD2 and late-arriving data |
 | **Wed 10/21** | Ex 5 is already `DT_PENDING_WITHDRAWALS`. Re-read §0 and the JD. Rehearse the 5 sound bites + 3 questions. | Ready |
 | **Thu 10/22 10:15 PT** | Re-read §0 and the KPI list. SQL scratchpad open. | Calm |

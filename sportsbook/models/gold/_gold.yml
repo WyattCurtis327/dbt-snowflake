@@ -2,20 +2,69 @@ version: 2
 models:
   - name: fct_bets
     description: One row per bet (test accounts excluded). Grain = bet_id.
+    semantic_model:
+      enabled: true
+      name: sem_bets
+    agg_time_dimension: settled_date_et
     columns:
       - name: bet_id
         data_tests: [unique, not_null]
-      - name: status
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['settled', 'void', 'open']
+        entity:
+          type: primary
+          name: bet
       - name: customer_id
+        entity:
+          type: foreign
+          name: customer
         data_tests:
           - relationships:
               arguments:
                 to: ref('brz_customers')
                 field: customer_id
+      - name: settled_date_et
+        granularity: day
+        dimension:
+          type: time
+          name: settled_date_et
+      - name: state
+        dimension:
+          type: categorical
+      - name: bet_type
+        dimension:
+          type: categorical
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['settled', 'void', 'open']
+    metrics:
+      - name: cash_handle
+        label: Cash handle
+        type: simple
+        agg: sum
+        expr: cash_handle
+      - name: cash_ggr
+        label: Cash GGR
+        type: simple
+        agg: sum
+        expr: cash_ggr
+      - name: bonus_cost
+        label: Bonus cost
+        type: simple
+        agg: sum
+        expr: bonus_cost
+      - name: hold_pct
+        label: Hold %
+        type: ratio
+        numerator: cash_ggr
+        denominator: cash_handle
+      - name: ngr
+        label: NGR (GGR - bonus cost)
+        type: derived
+        expr: cash_ggr - bonus_cost
+        input_metrics:
+          - name: cash_ggr
+          - name: bonus_cost
   - name: fct_payments
     columns:
       - name: payment_id
