@@ -1,7 +1,8 @@
 snapshots:
   - name: snap_customer_vip
-    # Snowflake: landing already COPYed. DuckDB: the seed of the same name.
-    relation: "{{ source('landing', 'raw_customers') if target.type == 'snowflake' else ref('raw_customers') }}"
+    # Fusion wants relation: source(...) / ref(...) with no {{ }}.
+    # landing.raw_customers is COPY on Snowflake and the seed on DuckDB.
+    relation: source('landing', 'raw_customers')
     config:
       unique_key: customer_id
       strategy: timestamp

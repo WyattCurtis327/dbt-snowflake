@@ -7,7 +7,6 @@ sources:
     schema: "{{ 'LANDING' if target.type == 'snowflake' else 'landing' }}"
     tables:
       - name: raw_bets
-        loaded_at_field: placed_at_utc
       - name: raw_customers
       - name: raw_payments
       - name: raw_kyc_events
