@@ -1,3 +1,23 @@
 {
-    "dbt.dbtMajorVersion": "v1"
+    "dbt.dbtMajorVersion": "v1",
+    "dbt.environmentVariables": {
+        "DBT_PROFILES_DIR": "${workspaceFolder}/sportsbook"
+    },
+    "terminal.integrated.cwd": "${workspaceFolder}/sportsbook",
+    "terminal.integrated.env.windows": {
+        "DBT_PROFILES_DIR": "${workspaceFolder}/sportsbook",
+        "SNOWFLAKE_PRIVATE_KEY_PATH": "${env:USERPROFILE}\\.snowflake\\dbt_cloud_rsa_key.p8"
+    },
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/snowflake/terminal_env.ps1"
+            ]
+        }
+    }
 }

@@ -1,0 +1,22 @@
+# Local-only helper so `dbt debug` from the repo root does not load
+# ~/.dbt/profiles.yml (other projects there require dbt-databricks).
+# Same profile name as sportsbook/profiles.yml. No secrets.
+sportsbook:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: sportsbook/sportsbook.duckdb
+      threads: 1
+    snowflake:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH', env_var('USERPROFILE', env_var('HOME', '')) ~ '/.snowflake/dbt_cloud_rsa_key.p8') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
+      role: "{{ env_var('SNOWFLAKE_DBT_ROLE', 'TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'OPS_XS_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'FBG_PREP') }}"
+      schema: gold
+      threads: 4
+      client_session_keep_alive: true

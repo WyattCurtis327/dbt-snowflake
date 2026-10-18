@@ -1,0 +1,33 @@
+# Convenience so `dbt debug` / `dbt build` work from the repo root.
+# dbt Cloud uses subdirectory sportsbook/ and ignores this file.
+name: sportsbook
+version: "1.0.0"
+profile: sportsbook
+model-paths: ["sportsbook/models"]
+seed-paths: ["sportsbook/seeds"]
+snapshot-paths: ["sportsbook/snapshots"]
+macro-paths: ["sportsbook/macros"]
+test-paths: ["sportsbook/tests"]
+
+models:
+  sportsbook:
+    bronze:
+      +schema: bronze
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: ephemeral
+    gold:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  sportsbook:
+    +schema: landing
+    +enabled: "{{ target.type != 'snowflake' }}"
+    raw_bets:
+      +column_types: {legs_json: varchar}
+
+snapshots:
+  sportsbook:
+    +schema: gold

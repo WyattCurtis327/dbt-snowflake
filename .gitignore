@@ -31,7 +31,9 @@ package-lock.yml
 !.env.example
 profiles.yml
 !sportsbook/profiles.yml
+!/profiles.yml
 *.pem
+*.p8
 *.key
 *.p12
 *.pfx

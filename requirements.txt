@@ -1,0 +1,7 @@
+# Local CLI. dbt Cloud / Fusion is separate.
+dbt-core>=1.10,<2
+dbt-duckdb>=1.9
+dbt-snowflake>=1.9
+snowflake-connector-python>=3.12
+PyYAML>=6
+cryptography>=42

@@ -9,8 +9,8 @@ sportsbook:
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
-      password: "{{ env_var('SNOWFLAKE_PASSWORD', '') }}"
-      authenticator: "{{ env_var('SNOWFLAKE_AUTHENTICATOR', 'snowflake') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH', env_var('USERPROFILE', env_var('HOME', '')) ~ '/.snowflake/dbt_cloud_rsa_key.p8') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
       role: "{{ env_var('SNOWFLAKE_DBT_ROLE', 'TRANSFORMER') }}"
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'OPS_XS_WH') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE', 'FBG_PREP') }}"

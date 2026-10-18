@@ -7,9 +7,11 @@ Usage (from the repo root, venv on):
     python snowflake/run.py teardown   # drop database / warehouse / roles (start over)
     python snowflake/run.py all        # setup + load; leaves objects built
     python snowflake/run.py sql snowflake/day1_setup.sql
+    python snowflake/run.py debug     # dbt debug --target snowflake (key-pair)
 
 Reads .env in the repo root, then fills missing Snowflake keys from ~/.dbt/profiles.yml.
-Does not print secrets. See .env.example.
+Prefers ~/.snowflake/dbt_cloud_rsa_key.p8 over password. Does not print secrets.
+See .env.example.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
+DEFAULT_PRIVATE_KEY = Path.home() / ".snowflake" / "dbt_cloud_rsa_key.p8"
 
 PUT_FILES = [
     "raw_customers.csv",
@@ -51,6 +54,15 @@ def load_dotenv(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def ensure_private_key_env() -> Path | None:
+    raw = os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH", "").strip()
+    path = Path(raw) if raw else DEFAULT_PRIVATE_KEY
+    if path.is_file():
+        os.environ.setdefault("SNOWFLAKE_PRIVATE_KEY_PATH", str(path))
+        return path
+    return None
+
+
 def connect():
     import snowflake.connector
 
@@ -70,15 +82,23 @@ def connect():
     if warehouse:
         kwargs["warehouse"] = warehouse
 
+    key_path = ensure_private_key_env()
     authenticator = os.environ.get("SNOWFLAKE_AUTHENTICATOR", "").strip()
     password = os.environ.get("SNOWFLAKE_PASSWORD", "").strip()
-    if authenticator:
+    if key_path:
+        kwargs["private_key_file"] = str(key_path)
+        passphrase = os.environ.get("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", "").strip()
+        if passphrase:
+            kwargs["private_key_file_pwd"] = passphrase
+    elif authenticator:
         kwargs["authenticator"] = authenticator
     elif password:
         kwargs["password"] = password
     else:
         sys.exit(
-            "Set SNOWFLAKE_AUTHENTICATOR=externalbrowser or SNOWFLAKE_PASSWORD in .env."
+            "Set SNOWFLAKE_PRIVATE_KEY_PATH (or place the key at "
+            f"{DEFAULT_PRIVATE_KEY}), SNOWFLAKE_AUTHENTICATOR=externalbrowser, "
+            "or SNOWFLAKE_PASSWORD in .env."
         )
 
     return snowflake.connector.connect(**kwargs)
@@ -187,10 +207,11 @@ def apply_dbt_profile() -> None:
     mapping = {
         "SNOWFLAKE_ACCOUNT": "account",
         "SNOWFLAKE_USER": "user",
-        "SNOWFLAKE_PASSWORD": "password",
-        "SNOWFLAKE_AUTHENTICATOR": "authenticator",
         "SNOWFLAKE_WAREHOUSE": "warehouse",
     }
+    if not ensure_private_key_env():
+        mapping["SNOWFLAKE_PASSWORD"] = "password"
+        mapping["SNOWFLAKE_AUTHENTICATOR"] = "authenticator"
     for env_key, profile_key in mapping.items():
         value = dev.get(profile_key)
         if value:
@@ -250,6 +271,11 @@ def run_dbt() -> None:
     env["SNOWFLAKE_DBT_ROLE"] = "TRANSFORMER"
     env["SNOWFLAKE_DATABASE"] = "FBG_PREP"
     env.setdefault("DBT_PROFILES_DIR", str(sportsbook))
+    key_path = ensure_private_key_env()
+    if key_path:
+        env["SNOWFLAKE_PRIVATE_KEY_PATH"] = str(key_path)
+        env.pop("SNOWFLAKE_PASSWORD", None)
+        env.pop("SNOWFLAKE_AUTHENTICATOR", None)
     flags = ["--profiles-dir", str(sportsbook), "--project-dir", str(sportsbook)]
     print("-- dbt snapshot --target snowflake")
     subprocess.run([str(dbt), "snapshot", "--target", "snowflake", *flags], cwd=sportsbook, env=env, check=True)
@@ -260,6 +286,27 @@ def run_dbt() -> None:
         env=env,
         check=True,
     )
+
+
+def run_dbt_debug() -> None:
+    sportsbook = ROOT / "sportsbook"
+    scripts = Path(sys.executable).parent
+    dbt = scripts / ("dbt.exe" if os.name == "nt" else "dbt")
+    if not dbt.is_file():
+        sys.exit(f"dbt not found next to {sys.executable}. Activate .venv first.")
+    env = os.environ.copy()
+    env["SNOWFLAKE_WAREHOUSE"] = "OPS_XS_WH"
+    env["SNOWFLAKE_DBT_ROLE"] = "TRANSFORMER"
+    env["SNOWFLAKE_DATABASE"] = "FBG_PREP"
+    env.setdefault("DBT_PROFILES_DIR", str(sportsbook))
+    key_path = ensure_private_key_env()
+    if key_path:
+        env["SNOWFLAKE_PRIVATE_KEY_PATH"] = str(key_path)
+        env.pop("SNOWFLAKE_PASSWORD", None)
+        env.pop("SNOWFLAKE_AUTHENTICATOR", None)
+    flags = ["--profiles-dir", str(sportsbook), "--project-dir", str(sportsbook)]
+    print("-- dbt debug --target snowflake")
+    subprocess.run([str(dbt), "debug", "--target", "snowflake", "--no-use-colors", *flags], cwd=sportsbook, env=env, check=True)
 
 
 def cmd_setup(cur) -> None:
@@ -284,12 +331,19 @@ def main() -> None:
     sub.add_parser("load", help="PUT/COPY into LANDING, then dbt snapshot + build")
     sub.add_parser("teardown", help="drop database, warehouse, roles (and all dbt objects)")
     sub.add_parser("all", help="setup + load; leaves the project built")
+    sub.add_parser("debug", help="dbt debug --target snowflake using the local key pair")
     sql_p = sub.add_parser("sql", help="run any .sql file on this connection")
     sql_p.add_argument("path")
     args = parser.parse_args()
 
     load_dotenv(ROOT / ".env")
     apply_dbt_profile()
+    ensure_private_key_env()
+
+    if args.cmd == "debug":
+        run_dbt_debug()
+        print("done.")
+        return
 
     if args.cmd == "load":
         conn = connect()
