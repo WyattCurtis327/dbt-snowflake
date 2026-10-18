@@ -2,7 +2,7 @@
 
 Do **not** use Snowflake Partner Connect. That creates a managed jaffle_shop repo and new databases. This project already lives on GitHub and already has data in `FBG_PREP`.
 
-**Verified** Sat 10/17/2026 on Developer tenant `https://rc086.us1.dbt.com/` (account Loandepot, 1-project max). Project `sportsbook` replaced the old Databricks Analytics project. Latest prod job: **Success** on SHA `72fa753` (`dbt build --selector snowflake_deploy`).
+**Verified** Sat 10/17/2026 on Developer tenant `https://rc086.us1.dbt.com/` (account Loandepot, 1-project max). Project `sportsbook` replaced the old Databricks Analytics project. Snowflake trial **strong auth** is key-pair (Studio + Production). Latest prod command: `dbt build --selector snowflake_deploy`.
 
 Official background: [Quickstart for dbt and Snowflake](https://docs.getdbt.com/guides/snowflake) (manual connect) and [Connect to GitHub](https://docs.getdbt.com/docs/cloud/git/connect-github).
 
@@ -38,17 +38,27 @@ Install the dbt GitHub App on your user (or org) and grant it **WyattCurtis327/d
    | Database | `FBG_PREP` |
    | Warehouse | `OPS_XS_WH` |
    | Role | `TRANSFORMER` |
-   | Auth | Username/password for now (same user as the trial). Snowflake ends password auth for all users on **2026-08-31** — switch the Cloud connection to key-pair (deploy) or OAuth (dev) before then. Never commit the password. |
+   | Auth | **Key pair** on this trial (Snowflake strong auth). Username/password is rejected for new Cloud credentials and is sunset for Snowflake users. Never commit the private key or a passphrase. |
+
+   Generate an RSA 2048/4096 PKCS#8 key **outside the repo** (for example `~/.snowflake/dbt_cloud_rsa_key.p8`). Restrict the file ACL. Register the matching public key on the Snowflake user (ACCOUNTADMIN if needed). The login name in Cloud may be the email; `CURRENT_USER()` on this trial is a different identifier — use the quoted Snowflake username in `ALTER USER`:
+
+   ```sql
+   ALTER USER "your_snowflake_username" SET RSA_PUBLIC_KEY='<headerless public key body>';
+   ```
+
+   Paste only the **private** key into the Cloud credential UI (or a local env the Cloud job does not commit). Do not put the PEM in git, docs, or chat.
 
 3. **Test connection** → Save.
-4. **Your profile → Credentials → sportsbook** (dev environment):
+4. **Your profile → Credentials → sportsbook** (dev environment) **and** Production deployment credentials (the job uses Production):
 
    | Field | Value |
    |---|---|
+   | Auth method | Key pair |
    | Username | Your Snowflake login (email-style on this trial) |
-   | Password | Same as `~/.dbt/profiles.yml` — paste it in the UI, never commit it |
-   | Schema | `gold` (custom schemas `bronze` / `silver` / `gold` still win via `generate_schema_name`) |
-   | Threads | `4` |
+   | Private key | PKCS#8 PEM from the local file — paste in the UI only |
+   | Role / Database / Warehouse | `TRANSFORMER` / `FBG_PREP` / `OPS_XS_WH` |
+   | Schema | Dev: a personal schema such as `dbt_wcurtis`. Production: `gold` (custom schemas `bronze` / `silver` / `gold` still win via `generate_schema_name`) |
+   | Threads | `6` |
 
 5. **Repository:** GitHub → `WyattCurtis327/dbt-snowflake`.
 6. **Project subdirectory:** `sportsbook`  
