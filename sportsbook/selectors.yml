@@ -1,0 +1,10 @@
+selectors:
+  - name: snowflake_deploy
+    description: Build everything except toy seeds. Landing is already in FBG_PREP.LANDING.
+    definition:
+      union:
+        - method: fqn
+          value: "*"
+        - exclude:
+            - method: resource_type
+              value: seed

@@ -37,3 +37,5 @@ copy .env.example .env
 `setup` creates the warehouse, `FBG_PREP`, schemas, and roles. `load` PUTs/COPYs CSVs into **LANDING**, then runs `dbt snapshot` + `dbt build` so `brz_` / `slv_` / `fct_` / `mart_` / `sem_` exist in Snowflake. `teardown` drops the database and roles. Shortcut: `python snowflake/run.py all` (setup + load, leaves objects built).
 
 Details: [snowflake/README.md](snowflake/README.md).
+
+dbt platform (Cloud): do not use Partner Connect. Connect this GitHub repo with subdirectory `sportsbook` and warehouse `FBG_PREP` / `OPS_XS_WH`. Steps: [docs/dbt-cloud.md](docs/dbt-cloud.md).

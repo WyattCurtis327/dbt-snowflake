@@ -24,3 +24,5 @@ Landing is the first stop after PUT/COPY. It is **not** bronze. dbt then builds 
 Browser SSO: keep `SNOWFLAKE_AUTHENTICATOR=externalbrowser`. A browser window opens once per command.
 
 Local DuckDB (no Snowflake): `cd sportsbook` and `dbt build`, or `./run_all.sh`.
+
+Deploy from dbt platform: [docs/dbt-cloud.md](../docs/dbt-cloud.md). Project subdirectory is `sportsbook`. Job command: `dbt build --selector snowflake_deploy`.

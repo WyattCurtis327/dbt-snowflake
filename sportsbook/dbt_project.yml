@@ -25,6 +25,8 @@ models:
 seeds:
   sportsbook:
     +schema: landing
+    # Toy CSVs are DuckDB-only. Snowflake landing is PUT/COPY — never seed over it.
+    +enabled: "{{ target.type != 'snowflake' }}"
     raw_bets:
       +column_types: {legs_json: varchar}
 

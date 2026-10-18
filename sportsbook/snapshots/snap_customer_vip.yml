@@ -1,6 +1,7 @@
 snapshots:
   - name: snap_customer_vip
-    relation: ref('raw_customers')
+    # Snowflake: landing already COPYed. DuckDB: the seed of the same name.
+    relation: "{{ source('landing', 'raw_customers') if target.type == 'snowflake' else ref('raw_customers') }}"
     config:
       unique_key: customer_id
       strategy: timestamp
