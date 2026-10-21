@@ -1,18 +1,23 @@
 version: 2
 models:
   - name: fct_bets
-    description: One row per bet (test accounts excluded). Grain = bet_id.
+    description: >
+      One row per bet after dropping test accounts. Grain = bet_id.
+      Defines cash_handle, cash_ggr, and bonus_cost used by finance marts
+      and the semantic layer. Never build hold % from slv_bet_legs.
     semantic_model:
       enabled: true
       name: sem_bets
     agg_time_dimension: settled_date_et
     columns:
       - name: bet_id
+        description: Wager key. Grain of this table.
         data_tests: [unique, not_null]
         entity:
           type: primary
           name: bet
       - name: customer_id
+        description: Customer (non-test).
         entity:
           type: foreign
           name: customer
@@ -21,58 +26,301 @@ models:
               arguments:
                 to: ref('brz_customers')
                 field: customer_id
+      - name: state
+        description: State on the bet.
+        dimension:
+          type: categorical
+      - name: placed_at_utc
+        description: Placement time (UTC).
+      - name: placed_date_et
+        description: Placement calendar date in US Eastern.
+      - name: settled_at_utc
+        description: Settlement time (UTC).
       - name: settled_date_et
+        description: Settlement calendar date in US Eastern. Semantic time grain.
         granularity: day
         dimension:
           type: time
           name: settled_date_et
-      - name: state
-        dimension:
-          type: categorical
       - name: bet_type
+        description: single / parlay / sgp.
         dimension:
           type: categorical
+      - name: leg_count
+        description: Number of flattened legs. Null if JSON was empty.
       - name: status
+        description: settled / void / open.
         data_tests:
           - accepted_values:
               arguments:
                 values: ['settled', 'void', 'open']
+      - name: is_bonus_bet
+        description: True when the stake was promotional.
+      - name: stake
+        description: Amount wagered (bonus or cash).
+      - name: payout
+        description: Cash returned to the customer.
+      - name: cash_handle
+        description: '{{ doc("cash_handle") }}'
+      - name: cash_ggr
+        description: '{{ doc("cash_ggr") }}'
+      - name: bonus_cost
+        description: '{{ doc("bonus_cost") }}'
     metrics:
       - name: cash_handle
         label: Cash handle
+        description: '{{ doc("cash_handle") }}'
         type: simple
         agg: sum
         expr: cash_handle
       - name: cash_ggr
         label: Cash GGR
+        description: '{{ doc("cash_ggr") }}'
         type: simple
         agg: sum
         expr: cash_ggr
       - name: bonus_cost
         label: Bonus cost
+        description: '{{ doc("bonus_cost") }}'
         type: simple
         agg: sum
         expr: bonus_cost
       - name: hold_pct
         label: Hold %
+        description: '{{ doc("hold_pct") }}'
         type: ratio
         numerator: cash_ggr
         denominator: cash_handle
       - name: ngr
         label: NGR (GGR - bonus cost)
+        description: '{{ doc("ngr") }}'
         type: derived
         expr: cash_ggr - bonus_cost
         input_metrics:
           - name: cash_ggr
           - name: bonus_cost
+
   - name: fct_payments
+    description: >
+      Exercise 3. One row per payment_id. Incremental MERGE.
+      {{ doc("payments_lookback") }}
+      hours_to_withdraw only on completed withdrawals.
     columns:
       - name: payment_id
+        description: Payment key. Grain.
         data_tests: [unique, not_null]
+      - name: customer_id
+        description: Customer on the payment.
+      - name: payment_type
+        description: deposit or withdrawal.
+      - name: method
+        description: Rail.
+      - name: amount
+        description: Requested amount.
+      - name: status
+        description: Current status after MERGE.
+      - name: requested_at
+        description: Customer request time.
+      - name: completed_at
+        description: Terminal time.
+      - name: updated_at
+        description: Last processor update. Incremental watermark.
+      - name: hours_to_withdraw
+        description: Request to complete, in hours. Null unless completed withdrawal.
+
+  - name: fct_bets_with_vip_tier
+    description: >
+      Exercise 2. Each bet plus VIP at placement time and VIP now.
+      {{ doc("vip_scd2") }}
+    columns:
+      - name: bet_id
+        description: Wager key.
+        data_tests: [not_null]
+      - name: customer_id
+        description: Customer.
+      - name: placed_at_utc
+        description: Used for the SCD2 range join.
+      - name: stake
+        description: Amount wagered.
+      - name: vip_tier_at_bet
+        description: Tier from snap_customer_vip where placed_at is in [from, to).
+      - name: vip_tier_now
+        description: Current overwritten tier on brz_customers.
+
+  - name: fct_open_bets
+    description: >
+      One row per open (unsettled, non-void) bet. Grain = bet_id.
+      Book of open liability — not yet in cash handle.
+    columns:
+      - name: bet_id
+        description: Open wager key.
+        data_tests: [unique, not_null]
+      - name: status
+        description: Always open (filter in the model).
+      - name: customer_id
+        description: Customer.
+      - name: state
+        description: State on the bet.
+      - name: bet_type
+        description: single / parlay / sgp.
+      - name: stake
+        description: Amount still at risk.
+      - name: placed_at_utc
+        description: Placement time (UTC).
+      - name: placed_at_et
+        description: Placement time in US Eastern.
+
+  - name: fct_kyc_funnel
+    description: >
+      Exercise 6. One row per customer. Pivots KYC events to funnel timestamps.
+      Reports both UTC and ET registered dates (C2 registers 10/02 UTC = 10/01 ET).
+      auto_passed_proxy = pass within 5 minutes of first submit.
+    columns:
+      - name: customer_id
+        description: Customer. Grain.
+        data_tests: [unique, not_null]
+      - name: state
+        description: State on the events.
+      - name: registered_at
+        description: First registered event (UTC).
+      - name: first_submit_at
+        description: First kyc_submitted (UTC).
+      - name: kyc_passed_at
+        description: First kyc_passed (UTC).
+      - name: kyc_fail_count
+        description: Count of kyc_failed events.
+      - name: first_deposit_at
+        description: First-time deposit event (UTC).
+      - name: registered_date_et
+        description: Registration calendar date in Eastern.
+      - name: registered_date_utc
+        description: Registration calendar date in UTC (can disagree with ET).
+      - name: minutes_to_kyc_pass
+        description: Register to pass, in minutes (DATEDIFF boundaries).
+      - name: auto_passed_proxy
+        description: True if pass minus first submit is 5 minutes or less.
+      - name: ftd_within_24h
+        description: True if first deposit is within 24 hours of register.
+
   - name: mart_state_hold_ngr
+    description: >
+      Exercise 4. One row per state. Settled cash handle, GGR, hold %, bonus
+      cost, NGR, and toy tax. Hold is null when cash handle is 0 (bonus-only).
+      Show settled_bets next to every ratio. Test accounts already excluded upstream.
     columns:
       - name: state
+        description: Two-letter state. Grain.
         data_tests: [unique, not_null]
+      - name: settled_bets
+        description: Settled bet count in this state.
+      - name: cash_handle
+        description: Sum of {{ doc("cash_handle") }}
+      - name: cash_ggr
+        description: Sum of {{ doc("cash_ggr") }}
+      - name: hold_pct
+        description: '{{ doc("hold_pct") }}'
+      - name: bonus_cost
+        description: Sum of {{ doc("bonus_cost") }}
+      - name: ngr
+        description: '{{ doc("ngr") }}'
+      - name: osb_tax_rate
+        description: Illustrative state tax rate.
+      - name: taxable_base
+        description: NGR if promo_deductible_toy, else GGR (NY).
+      - name: est_gaming_tax
+        description: Rate times nonnegative taxable base.
+      - name: ngr_after_tax
+        description: NGR minus estimated tax.
+
+  - name: mart_parlay_one_leg_away
+    description: >
+      Exercise 1. Settled parlays/SGPs that lost exactly one leg (bad-beat).
+      Combined decimal odds via exp(sum(ln(american_to_decimal))).
+      CX / promo-eligibility use case.
+    columns:
+      - name: bet_id
+        description: Parlay or SGP key.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: Customer.
+      - name: state
+        description: State on the bet.
+      - name: bet_type
+        description: parlay or sgp.
+      - name: stake
+        description: Amount wagered.
+      - name: legs
+        description: Leg count.
+      - name: lost_legs
+        description: Always 1 (HAVING filter).
+      - name: parlay_decimal_odds
+        description: Product of leg decimal odds.
+
+  - name: mart_payments_daily
+    description: >
+      Payments KPI by type and method. success_rate_resolved excludes pending
+      from the denominator (state that aloud). median_hours_to_withdraw is
+      withdrawals only.
+    columns:
+      - name: payment_type
+        description: deposit or withdrawal.
+      - name: method
+        description: Rail.
+      - name: attempts
+        description: Row count in the group.
+      - name: completed
+        description: Completed count.
+      - name: success_rate_resolved
+        description: completed / (completed + failed). Pending omitted.
+      - name: pending
+        description: Still pending.
+      - name: median_hours_to_withdraw
+        description: Median hours_to_withdraw in the group.
+
+  - name: mart_kyc_funnel_by_state
+    description: >
+      Exercise 6 rollup. One row per state. Pass rate = passed / submitted.
+      median_min_to_pass uses DATEDIFF minutes (boundary-based).
+    columns:
+      - name: state
+        description: Two-letter state. Grain.
+        data_tests: [unique, not_null]
+      - name: registered
+        description: Customers who registered.
+      - name: submitted_kyc
+        description: Customers who submitted KYC at least once.
+      - name: passed_kyc
+        description: Customers who passed.
+      - name: made_ftd
+        description: Customers with a first deposit.
+      - name: ftd_within_24h
+        description: FTD within 24 hours of register.
+      - name: kyc_pass_rate
+        description: passed / submitted.
+      - name: median_min_to_pass
+        description: Median minutes from register to pass.
+
+  - name: dt_pending_withdrawals
+    description: >
+      Exercise 5. Pending withdrawals with state and VIP. Dynamic table on
+      Snowflake (5 minute lag). View on DuckDB. No current_timestamp() inside
+      — compute hours_pending at read time so refresh stays incremental.
+    columns:
+      - name: payment_id
+        description: Pending withdrawal key.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: Customer.
+      - name: state
+        description: Customer state.
+      - name: vip_tier
+        description: Current VIP (bronze customer record).
+      - name: method
+        description: Payout rail.
+      - name: amount
+        description: Requested amount.
+      - name: requested_at
+        description: When the withdrawal was requested.
 
 unit_tests:
   - name: test_fct_bets_ggr_and_bonus_logic

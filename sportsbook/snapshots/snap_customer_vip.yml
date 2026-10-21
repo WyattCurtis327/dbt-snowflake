@@ -1,5 +1,12 @@
 snapshots:
   - name: snap_customer_vip
+    description: >
+      Exercise 2. SCD2 history of customer VIP tier. Timestamp strategy on
+      updated_at. Current rows use dbt_valid_to = 9999-12-31. Snapshot the
+      source, not a mart. One run against current landing only has no history —
+      use `python snowflake/run.py replay-vip` (v1 then current) so
+      vip_tier_at_bet can differ from vip_tier_now. Two changes between runs
+      collapse to the last tier (see landing.raw_vip_tier_history).
     # Fusion wants relation: source(...) / ref(...) with no {{ }}.
     # landing.raw_customers is COPY on Snowflake and the seed on DuckDB.
     relation: source('landing', 'raw_customers')
@@ -8,3 +15,24 @@ snapshots:
       strategy: timestamp
       updated_at: updated_at
       dbt_valid_to_current: "cast('9999-12-31' as timestamp)"
+    columns:
+      - name: customer_id
+        description: Customer natural key. Unique per snapshot version, not per table.
+      - name: state
+        description: Home / KYC state copied from landing at snapshot time.
+      - name: signup_ts_utc
+        description: Account created at (UTC).
+      - name: vip_tier
+        description: VIP tier as of this SCD2 version. Join on this for VIP at bet time.
+      - name: is_test_account
+        description: Internal or QA flag as of this version.
+      - name: updated_at
+        description: Source watermark. Timestamp strategy compares this across runs.
+      - name: dbt_scd_id
+        description: Hash of unique_key + valid_from. One row per version.
+      - name: dbt_updated_at
+        description: When dbt recorded this version (from updated_at).
+      - name: dbt_valid_from
+        description: Inclusive start of this version. Used as placed_at_utc >= dbt_valid_from.
+      - name: dbt_valid_to
+        description: Exclusive end. Current rows are 9999-12-31 so no COALESCE is needed.

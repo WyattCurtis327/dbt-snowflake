@@ -1,0 +1,48 @@
+version: 2
+macros:
+  - name: from_landing
+    description: >
+      Read a landing table. On Snowflake uses source('landing', name).
+      On DuckDB uses ref() so seeds are upstream of bronze.
+    arguments:
+      - name: table_name
+        type: string
+        description: Landing table (raw_bets, raw_customers, …).
+
+  - name: generate_schema_name
+    description: >
+      Writes bronze/silver/gold to those exact schema names (no dev_ prefix).
+      Studio and prod both land gold models in GOLD when +schema is set.
+    arguments:
+      - name: custom_schema_name
+        description: Value of +schema, or none to use target.schema.
+      - name: node
+        description: The dbt node being built.
+
+  - name: to_et
+    description: >
+      Convert a UTC timestamp to America/New_York wall clock.
+      Dispatches snowflake__to_et vs default__to_et (DuckDB).
+    arguments:
+      - name: col
+        description: SQL expression for a UTC timestamp.
+
+  - name: snowflake__to_et
+    description: Snowflake implementation — CONVERT_TIMEZONE('UTC','America/New_York', col).
+    arguments:
+      - name: col
+        description: UTC timestamp expression.
+
+  - name: default__to_et
+    description: DuckDB implementation — AT TIME ZONE UTC then America/New_York.
+    arguments:
+      - name: col
+        description: UTC timestamp expression.
+
+  - name: american_to_decimal
+    description: >
+      Convert American odds to decimal odds. Used in the parlay product
+      exp(sum(ln(decimal))).
+    arguments:
+      - name: odds
+        description: American odds column or expression.

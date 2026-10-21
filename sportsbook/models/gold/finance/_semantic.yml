@@ -3,9 +3,12 @@
 # top-level semantic_models / measures here (Fusion dbt1157).
 models:
   - name: sem_time_spine
-    description: One row per day in 2026. MetricFlow join key for time metrics.
+    description: >
+      One row per day in 2026. MetricFlow standard time spine. Join key for
+      time-aware metrics on sem_bets (settled_date_et). Not a business fact.
     time_spine:
       standard_granularity_column: date_day
     columns:
       - name: date_day
+        description: Calendar date (2026). MetricFlow standard time-spine column.
         granularity: day

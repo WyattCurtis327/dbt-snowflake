@@ -1,0 +1,87 @@
+version: 2
+models:
+  - name: brz_bets
+    description: >
+      Bronze bets. 1:1 with landing.raw_bets — rename, cast, and lowercase
+      status/type only. {{ doc("landing_vs_bronze") }} View on Snowflake.
+    columns:
+      - name: bet_id
+        description: Wager key.
+        data_tests: [not_null]
+      - name: customer_id
+        description: Customer who placed the bet.
+      - name: state
+        description: Uppercased two-letter state.
+      - name: placed_at_utc
+        description: Placement time (UTC).
+      - name: settled_at_utc
+        description: Settlement time (UTC).
+      - name: bet_type
+        description: Lowercased single / parlay / sgp.
+      - name: stake
+        description: Amount wagered.
+      - name: is_bonus_bet
+        description: True when the stake is promotional.
+      - name: payout
+        description: Cash returned. Bonus bets = winnings only.
+      - name: status
+        description: Lowercased settled / void / open.
+      - name: legs_json
+        description: Raw JSON string of legs. Flattened in slv_bet_legs.
+
+  - name: brz_customers
+    description: >
+      Bronze customers. 1:1 with landing.raw_customers. Current VIP tier only.
+      {{ doc("landing_vs_bronze") }} {{ doc("vip_scd2") }}
+    columns:
+      - name: customer_id
+        description: Customer key.
+        data_tests: [unique, not_null]
+      - name: state
+        description: Uppercased home state.
+      - name: signup_ts_utc
+        description: Signup time (UTC).
+      - name: vip_tier
+        description: Current overwritten VIP tier.
+      - name: is_test_account
+        description: Drop these in gold revenue models.
+      - name: updated_at
+        description: Source updated_at for snapshots.
+
+  - name: brz_payments
+    description: >
+      Bronze payments. 1:1 with landing.raw_payments. Current status only.
+    columns:
+      - name: payment_id
+        description: Payment key.
+        data_tests: [not_null]
+      - name: customer_id
+        description: Customer on the payment.
+      - name: payment_type
+        description: deposit or withdrawal.
+      - name: method
+        description: Rail (card, ach, paypal, …).
+      - name: amount
+        description: Requested amount.
+      - name: status
+        description: pending / completed / failed / chargeback.
+      - name: requested_at
+        description: Customer request time.
+      - name: completed_at
+        description: Terminal time, if any.
+      - name: updated_at
+        description: Last processor update.
+
+  - name: brz_kyc_events
+    description: >
+      Bronze KYC/onboarding events. 1:1 with landing.raw_kyc_events.
+      Multiple rows per customer.
+    columns:
+      - name: customer_id
+        description: Customer the event belongs to.
+      - name: state
+        description: Uppercased state on the event.
+      - name: event_name
+        description: registered / kyc_submitted / kyc_failed / kyc_passed / first_deposit.
+      - name: event_ts_utc
+        description: Event time (UTC).

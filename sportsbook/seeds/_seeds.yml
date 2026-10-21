@@ -1,0 +1,19 @@
+version: 2
+seeds:
+  - name: raw_bets
+    description: >
+      DuckDB-only toy extract of landing.raw_bets. Disabled on Snowflake
+      (landing is PUT/COPY). Column meanings match source landing.raw_bets.
+  - name: raw_customers
+    description: >
+      DuckDB-only toy extract of landing.raw_customers. vip_tier is the
+      current overwritten value — snapshot this, do not treat it as history.
+  - name: raw_payments
+    description: >
+      DuckDB-only toy extract of landing.raw_payments. Current status only.
+  - name: raw_kyc_events
+    description: >
+      DuckDB-only toy extract of landing.raw_kyc_events. Grain is one event.
+  - name: state_tax_rates
+    description: >
+      DuckDB-only toy extract of landing.state_tax_rates. Illustrative rates.

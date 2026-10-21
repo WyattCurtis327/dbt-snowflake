@@ -1,0 +1,24 @@
+version: 2
+models:
+  - name: slv_bet_legs
+    description: >
+      Exercise 1. One row per parlay/SGP (or single) leg. LATERAL FLATTEN on
+      Snowflake; unnest on DuckDB. Ephemeral — inlined as a CTE, no table in
+      SILVER. Never sum stake from this grain (that double-counts handle).
+    columns:
+      - name: bet_id
+        description: Parent wager.
+      - name: bet_type
+        description: Copied from bronze.
+      - name: leg_index
+        description: 0-based position in the JSON array.
+      - name: event
+        description: Game or event name on the leg.
+      - name: market
+        description: Market type (spread, moneyline, …).
+      - name: selection
+        description: Side / pick.
+      - name: american_odds
+        description: American odds for this leg.
+      - name: leg_result
+        description: won / lost / void / or unset if still open.

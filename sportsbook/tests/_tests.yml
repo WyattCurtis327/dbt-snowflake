@@ -1,0 +1,9 @@
+version: 2
+data_tests:
+  - name: assert_hold_pct_in_range
+    description: >
+      Warns (does not fail) when a state's hold % is outside [-100%, 100%].
+      Usually a join fan-out, but tiny samples can legitimately go below -100%.
+  - name: assert_settled_bets_have_payout
+    description: >
+      Fails if a settled bet has a null or negative payout.

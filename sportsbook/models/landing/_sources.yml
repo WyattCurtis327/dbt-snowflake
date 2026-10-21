@@ -1,13 +1,245 @@
 version: 2
 sources:
   - name: landing
-    description: >
-      First stop after PUT/COPY (Snowflake) or dbt seed (DuckDB).
-      Not bronze — brz_* models rename, cast, and dedupe from here.
+    description: '{{ doc("project_overview") }} {{ doc("landing_vs_bronze") }}'
     schema: "{{ 'LANDING' if target.type == 'snowflake' else 'landing' }}"
     tables:
       - name: raw_bets
+        description: >
+          One row per wager as landed from the extract. legs_json is a JSON array
+          of parlay/SGP legs. Snowflake COPY; DuckDB seed.
+        columns:
+          - name: bet_id
+            description: Natural key for a single wager.
+          - name: customer_id
+            description: Customer who placed the bet.
+          - name: state
+            description: Two-letter state where the bet was placed.
+          - name: placed_at_utc
+            description: Bet placement timestamp in UTC.
+          - name: settled_at_utc
+            description: Settlement timestamp in UTC. Null while the bet is open.
+          - name: bet_type
+            description: single, parlay, or sgp.
+          - name: stake
+            description: Amount wagered.
+          - name: is_bonus_bet
+            description: True when the stake is promotional (house money).
+          - name: payout
+            description: Cash returned to the customer. On bonus bets this is winnings only.
+          - name: status
+            description: settled, void, or open.
+          - name: legs_json
+            description: JSON array of legs (event, market, selection, odds, result).
       - name: raw_customers
+        description: >
+          Current customer record. vip_tier is overwritten in place.
+          {{ doc("vip_scd2") }}
+        columns:
+          - name: customer_id
+            description: Customer natural key.
+          - name: state
+            description: Home / KYC state.
+          - name: signup_ts_utc
+            description: Account created at (UTC).
+          - name: vip_tier
+            description: Current VIP tier (bronze/silver/gold/platinum). Overwritten.
+          - name: is_test_account
+            description: Internal or QA account. Must be excluded from revenue facts.
+          - name: updated_at
+            description: Last change to this record. Snapshot timestamp strategy uses this.
       - name: raw_payments
+        description: >
+          Current payment row (deposit or withdrawal). Status is overwritten;
+          fct_payments MERGE + lookback catches late updates (Exercise 3).
+        columns:
+          - name: payment_id
+            description: Payment natural key.
+          - name: customer_id
+            description: Customer who deposited or withdrew.
+          - name: payment_type
+            description: deposit or withdrawal.
+          - name: method
+            description: card, ach, paypal, debit, etc.
+          - name: amount
+            description: Requested amount.
+          - name: status
+            description: pending, completed, failed, or chargeback.
+          - name: requested_at
+            description: When the customer submitted the payment.
+          - name: completed_at
+            description: When it reached a terminal status. Null if still pending.
+          - name: updated_at
+            description: Last processor update. Incremental models filter on this.
       - name: raw_kyc_events
+        description: >
+          Event log for onboarding — registered, kyc_submitted, kyc_failed,
+          kyc_passed, first_deposit. Grain is one event, not one customer.
+        columns:
+          - name: customer_id
+            description: Customer the event belongs to.
+          - name: state
+            description: State on the event.
+          - name: event_name
+            description: Funnel step name (see description above).
+          - name: event_ts_utc
+            description: When the event fired (UTC).
       - name: state_tax_rates
+        description: >
+          Illustrative online-sportsbook tax rates by state (CASPR headline rates).
+          promo_deductible_toy is a toy flag except NY (NY does not deduct promos).
+        columns:
+          - name: state
+            description: Two-letter state code.
+          - name: osb_tax_rate
+            description: Simplified tax rate applied to the taxable base.
+          - name: promo_deductible_toy
+            description: If true, NGR is the taxable base; if false (NY), GGR is.
+          - name: tax_basis
+            description: ggr or handle (TN taxes handle).
+          - name: rate_note
+            description: Human note. Verify before quoting in an interview.
+      - name: raw_vip_tier_history
+        description: >
+          Event log of VIP tier changes (Exercise 2 alternative to snapshot).
+          Grain = vip_change_id. Use LEAD(changed_at_utc) for valid-to.
+          Two changes between snapshot runs collapse to the last tier — this
+          table keeps every change. Loaded on Snowflake; not in the DuckDB
+          toy seeds.
+        columns:
+          - name: vip_change_id
+            description: Natural key for one tier change.
+          - name: customer_id
+            description: Customer who changed tier.
+          - name: from_tier
+            description: Tier before the change.
+          - name: to_tier
+            description: Tier after the change.
+          - name: changed_at_utc
+            description: When the change took effect (UTC).
+          - name: change_reason
+            description: Why the tier moved (host_upgrade, spend, downgrade, …).
+      - name: raw_cx_tickets
+        description: >
+          Zendesk-style CX tickets. ticket_id is NOT unique — reloads
+          duplicate on purpose. Dedupe with
+          qualify row_number() over (partition by ticket_id order by _loaded_at desc) = 1,
+          then lower(trim(channel)). Loaded on Snowflake; not modeled in this
+          project and not in the DuckDB toy seeds.
+        columns:
+          - name: ticket_id
+            description: Ticket id. Duplicates exist across reloads.
+          - name: customer_id
+            description: Customer who opened the ticket.
+          - name: state
+            description: Customer / ticket state.
+          - name: channel
+            description: chat / email / phone. Casing and whitespace are messy on purpose.
+          - name: queue
+            description: CX queue (KYC, Payments, VIP, …).
+          - name: contact_reason
+            description: Why they contacted.
+          - name: priority
+            description: Ticket priority.
+          - name: created_at_utc
+            description: Ticket opened (UTC).
+          - name: first_response_at_utc
+            description: First agent response (UTC).
+          - name: resolved_at_utc
+            description: Resolved time (UTC). Null if still open.
+          - name: status
+            description: new / open / pending / solved.
+          - name: csat_score
+            description: 1–5 CSAT if surveyed.
+          - name: reopened_count
+            description: How many times the ticket was reopened.
+          - name: related_bet_id
+            description: Linked wager, if any.
+          - name: related_payment_id
+            description: Linked payment, if any.
+          - name: _loaded_at
+            description: Landing load time. Use this to pick the latest duplicate.
+      - name: raw_fraud_alerts
+        description: >
+          Rule-fired fraud alerts (velocity, chargeback, multi-account, bonus
+          abuse, ATO, geo, high-value WD). Includes alert_type = 'test' rows
+          that must be excluded from ops KPIs. Loaded on Snowflake; not
+          modeled in this project and not in the DuckDB toy seeds.
+        columns:
+          - name: alert_id
+            description: Alert natural key.
+          - name: customer_id
+            description: Customer the rule fired on.
+          - name: alert_type
+            description: Rule family (includes 'test').
+          - name: severity
+            description: low / medium / high.
+          - name: rule_name
+            description: Named detection rule.
+          - name: created_at_utc
+            description: When the alert fired (UTC).
+          - name: related_payment_id
+            description: Linked payment, if any.
+          - name: rule_detail
+            description: Free-text / key=value detail from the rule.
+          - name: status
+            description: open / closed.
+          - name: disposition
+            description: true_positive / false_positive / … after review.
+          - name: resolved_at_utc
+            description: Review closed at (UTC).
+      - name: raw_promos
+        description: >
+          Promo definitions (bonus bets, no-sweat SGP, deposit match, VIP
+          reload, FanCash). Names start with MOCK. Loaded on Snowflake; not
+          modeled in this project and not in the DuckDB toy seeds.
+        columns:
+          - name: promo_id
+            description: Promo natural key.
+          - name: promo_name
+            description: Display name (MOCK prefix).
+          - name: promo_type
+            description: bonus_bet / no_sweat / deposit_match / vip_reload / fancash.
+          - name: eligible_states
+            description: ALL, or pipe-separated state list (NJ|PA|MI|IL).
+          - name: start_at_utc
+            description: Promo window start (UTC).
+          - name: end_at_utc
+            description: Promo window end (UTC).
+          - name: token_amount
+            description: Face value of one token / award.
+          - name: max_tokens_per_customer
+            description: Cap on tokens a customer can receive.
+          - name: min_american_odds
+            description: Minimum American odds to redeem, if any.
+          - name: notes
+            description: Eligibility / expiry notes.
+      - name: raw_promo_awards
+        description: >
+          Tokens and FanCash credits issued to customers. redeemed_bet_id
+          points at raw_bets when a bonus bet is used. FanCash and no-sweat
+          costs are not in this project's NGR formula. Loaded on Snowflake;
+          not modeled here and not in the DuckDB toy seeds.
+        columns:
+          - name: award_id
+            description: Award natural key.
+          - name: promo_id
+            description: Parent promo.
+          - name: customer_id
+            description: Customer who received the award.
+          - name: award_type
+            description: bonus_bet or fancash.
+          - name: award_amount
+            description: Face value of the award.
+          - name: awarded_at_utc
+            description: Issued at (UTC).
+          - name: expires_at_utc
+            description: Expiry (UTC).
+          - name: status
+            description: active / redeemed / expired / revoked / credited.
+          - name: redeemed_bet_id
+            description: Bet that consumed a bonus-bet token, if any.
+          - name: earned_on_bet_id
+            description: Bet that earned FanCash, if any.
+          - name: updated_at
+            description: Last status change.
