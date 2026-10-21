@@ -2,6 +2,7 @@
 
 select
     bet_id,
+    status,
     customer_id,
     state,
     bet_type,
