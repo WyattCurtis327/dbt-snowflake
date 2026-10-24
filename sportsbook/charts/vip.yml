@@ -5,7 +5,14 @@ text: >
   the overwritten tier on `brz_customers`. Joining only to "now" over-states
   platinum handle. On DuckDB the toy snapshot may have little history;
   Snowflake needs `python snowflake/run.py replay-vip` before the inequality
-  has rows.
+  has rows. The VIP control filters to `vip_tier_at_bet` (empty = all tiers).
+
+variables:
+  vip_tier:
+    label: VIP at bet
+    input: multiselect
+    options:
+      static: [bronze, silver, gold, platinum]
 
 queries:
   kpis:
@@ -17,6 +24,7 @@ queries:
       from {{ ref('fct_bets_with_vip_tier') }} v
       join {{ ref('fct_bets') }} f using (bet_id)
       where f.status = 'settled'
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
     formats:
       bets: integer
       tier_changed: integer
@@ -30,6 +38,7 @@ queries:
       from {{ ref('fct_bets_with_vip_tier') }} v
       join {{ ref('fct_bets') }} f using (bet_id)
       where f.status = 'settled'
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
       group by 1, 2
       union all
       select
@@ -39,6 +48,7 @@ queries:
       from {{ ref('fct_bets_with_vip_tier') }} v
       join {{ ref('fct_bets') }} f using (bet_id)
       where f.status = 'settled'
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
       group by 1, 2
     formats:
       handle: currency
@@ -53,6 +63,7 @@ queries:
       join {{ ref('fct_bets') }} f using (bet_id)
       where f.status = 'settled'
         and v.vip_tier_at_bet <> v.vip_tier_now
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
       group by 1, 2
       order by handle desc
     formats:

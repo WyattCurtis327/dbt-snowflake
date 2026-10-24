@@ -3,7 +3,15 @@ source: snowflake
 text: >
   Same board as `vip.yml` on `FBG_PREP.GOLD`. Run
   `python snowflake/run.py replay-vip` first or the "tier changed" KPI
-  stays at 0. Load `snowflake/terminal_env.ps1` first.
+  stays at 0. Load `snowflake/terminal_env.ps1` first. The VIP control
+  filters to `vip_tier_at_bet` (empty = all tiers).
+
+variables:
+  vip_tier:
+    label: VIP at bet
+    input: multiselect
+    options:
+      static: [bronze, silver, gold, platinum]
 
 queries:
   kpis:
@@ -15,6 +23,7 @@ queries:
       from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
       join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
       where f.status = 'settled'
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
     formats:
       bets: integer
       tier_changed: integer
@@ -28,6 +37,7 @@ queries:
       from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
       join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
       where f.status = 'settled'
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
       group by 1, 2
       union all
       select
@@ -37,6 +47,7 @@ queries:
       from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
       join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
       where f.status = 'settled'
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
       group by 1, 2
     formats:
       handle: currency
@@ -51,6 +62,7 @@ queries:
       join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
       where f.status = 'settled'
         and v.vip_tier_at_bet <> v.vip_tier_now
+        and {{ filter('v.vip_tier_at_bet', vip_tier) }}
       group by 1, 2
       order by handle desc
     formats:
