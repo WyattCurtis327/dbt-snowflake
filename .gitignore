@@ -1,5 +1,6 @@
 # Python
 .venv/
+.venv-charts/
 venv/
 env/
 __pycache__/
@@ -43,6 +44,10 @@ id_ecdsa
 
 # Leftover folder from the earlier reorg (empty, often file-locked)
 fanatics_prep/
+
+# dbt Charts agent skill copies from `dct init`
+.agents/
+.claude/
 
 # OS / editor
 .DS_Store

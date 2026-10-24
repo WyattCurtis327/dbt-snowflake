@@ -1,0 +1,128 @@
+title: Sportsbook finance
+source: duckdb
+text: >
+  Settled cash handle, GGR, hold, and NGR from `fct_bets` and
+  `mart_state_hold_ngr` on local DuckDB. Test accounts are already
+  excluded upstream. Hold is GGR ÷ handle (null when handle is 0).
+
+queries:
+  kpis:
+    sql: |
+      select
+        sum(cash_handle) as cash_handle,
+        sum(cash_ggr) as cash_ggr,
+        sum(cash_ggr) - sum(bonus_cost) as ngr,
+        sum(cash_ggr) / nullif(sum(cash_handle), 0) as hold_pct
+      from {{ ref('fct_bets') }}
+      where status = 'settled'
+    formats:
+      cash_handle: currency
+      cash_ggr: currency
+      ngr: currency
+      hold_pct: percent
+  by_day:
+    sql: |
+      select
+        settled_date_et as settled_date,
+        sum(cash_handle) as handle,
+        sum(cash_ggr) as ggr
+      from {{ ref('fct_bets') }}
+      where status = 'settled'
+        and settled_date_et is not null
+      group by 1
+      order by 1
+    formats:
+      handle: currency
+      ggr: currency
+  by_type:
+    sql: |
+      select
+        bet_type,
+        sum(cash_handle) as cash_handle
+      from {{ ref('fct_bets') }}
+      where status = 'settled'
+      group by 1
+      order by 2 desc
+    formats:
+      cash_handle: currency
+  by_state:
+    sql: |
+      select
+        state,
+        settled_bets,
+        cash_handle,
+        cash_ggr,
+        hold_pct,
+        bonus_cost,
+        ngr,
+        ngr_after_tax
+      from {{ ref('mart_state_hold_ngr') }}
+      order by cash_handle desc
+    formats:
+      cash_handle: currency
+      cash_ggr: currency
+      bonus_cost: currency
+      ngr: currency
+      ngr_after_tax: currency
+      hold_pct: percent
+      settled_bets: integer
+
+charts:
+  k_handle:
+    type: kpi
+    query: kpis
+    value: cash_handle
+    label: Cash handle
+  k_ggr:
+    type: kpi
+    query: kpis
+    value: cash_ggr
+    label: Cash GGR
+  k_ngr:
+    type: kpi
+    query: kpis
+    value: ngr
+    label: NGR
+  k_hold:
+    type: kpi
+    query: kpis
+    value: hold_pct
+    label: Hold %
+  handle_trend:
+    type: line
+    query: by_day
+    x: settled_date
+    y: [handle, ggr]
+    title: Handle and GGR by settled date (ET)
+    height: 320
+  handle_by_type:
+    type: donut
+    query: by_type
+    theta: cash_handle
+    color: bet_type
+    title: Cash handle by bet type
+    height: 320
+  handle_by_state:
+    type: bar
+    query: by_state
+    x: state
+    y: cash_handle
+    title: Cash handle by state
+    sort:
+      by: cash_handle
+      order: desc
+    height: 280
+  state_table:
+    type: table
+    query: by_state
+    title: State hold, NGR, and toy tax
+
+rows:
+  - cols: [k_handle, k_ggr, k_ngr, k_hold]
+  - cols:
+      - width: "66%"
+        rows: [handle_trend]
+      - width: "34%"
+        rows: [handle_by_type]
+  - handle_by_state
+  - state_table

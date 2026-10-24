@@ -1,0 +1,4 @@
+# Isolated .venv-charts only. Python 3.11–3.13 (not the project 3.14 venv).
+# py -3.12 -m venv .venv-charts
+# .\.venv-charts\Scripts\python.exe -m pip install -r requirements-charts.txt
+dbt-charts[snowflake]==0.10.0
