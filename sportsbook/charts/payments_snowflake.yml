@@ -1,0 +1,133 @@
+title: Payments (Snowflake)
+source: snowflake
+text: >
+  Same board as `payments.yml` on `FBG_PREP.GOLD`. Success rate is
+  completed / (completed + failed). Load `snowflake/terminal_env.ps1` first.
+
+queries:
+  kpis:
+    sql: |
+      select
+        count(*) as attempts,
+        sum(case when status = 'completed' then 1 else 0 end) as completed,
+        sum(case when payment_type = 'withdrawal' and status = 'pending' then 1 else 0 end) as pending_wd,
+        median(hours_to_withdraw) as median_hours_wd
+      from FBG_PREP.GOLD.FCT_PAYMENTS
+    formats:
+      attempts: integer
+      completed: integer
+      pending_wd: integer
+      median_hours_wd: number_full
+  by_status:
+    sql: |
+      select
+        status,
+        count(*) as n
+      from FBG_PREP.GOLD.FCT_PAYMENTS
+      group by 1
+      order by 2 desc
+    formats:
+      n: integer
+  by_method:
+    sql: |
+      select
+        payment_type || ' / ' || method as rail,
+        attempts,
+        completed,
+        success_rate_resolved,
+        pending,
+        median_hours_to_withdraw as median_hours_wd
+      from FBG_PREP.GOLD.MART_PAYMENTS_DAILY
+      order by attempts desc
+    formats:
+      attempts: integer
+      completed: integer
+      pending: integer
+      success_rate_resolved: percent
+      median_hours_wd: number_full
+  pending_wd:
+    sql: |
+      select
+        vip_tier,
+        count(*) as tickets,
+        sum(amount) as amount
+      from FBG_PREP.GOLD.DT_PENDING_WITHDRAWALS
+      group by 1
+      order by amount desc
+    formats:
+      tickets: integer
+      amount: currency
+  pending_detail:
+    sql: |
+      select
+        payment_id,
+        customer_id,
+        state,
+        vip_tier,
+        method,
+        amount,
+        requested_at
+      from FBG_PREP.GOLD.DT_PENDING_WITHDRAWALS
+      order by requested_at
+    formats:
+      amount: currency
+
+charts:
+  k_attempts:
+    type: kpi
+    query: kpis
+    value: attempts
+    label: Attempts
+  k_completed:
+    type: kpi
+    query: kpis
+    value: completed
+    label: Completed
+  k_pending:
+    type: kpi
+    query: kpis
+    value: pending_wd
+    label: Pending withdrawals
+  status_mix:
+    type: donut
+    query: by_status
+    theta: n
+    color: status
+    title: Payments by status
+    height: 280
+  success_by_rail:
+    type: bar
+    query: by_method
+    x: rail
+    y: success_rate_resolved
+    title: Success rate on resolved payments
+    sort:
+      by: success_rate_resolved
+      order: desc
+    height: 280
+  pending_by_vip:
+    type: bar
+    query: pending_wd
+    x: vip_tier
+    y: amount
+    title: Pending withdrawal amount by VIP
+    height: 240
+  rail_table:
+    type: table
+    query: by_method
+    title: Attempts by type and method
+  pending_table:
+    type: table
+    query: pending_detail
+    title: Open withdrawal queue
+
+rows:
+  - cols: [k_attempts, k_completed, k_pending]
+  - cols:
+      - width: "40%"
+        rows: [status_mix]
+      - width: "60%"
+        rows: [success_by_rail]
+  - pending_by_vip
+  - rail_table
+  - pending_table

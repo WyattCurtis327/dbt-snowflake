@@ -1,0 +1,92 @@
+title: VIP at bet time (Snowflake)
+source: snowflake
+text: >
+  Same board as `vip.yml` on `FBG_PREP.GOLD`. Run
+  `python snowflake/run.py replay-vip` first or the "tier changed" KPI
+  stays at 0. Load `snowflake/terminal_env.ps1` first.
+
+queries:
+  kpis:
+    sql: |
+      select
+        count(*) as bets,
+        sum(case when v.vip_tier_at_bet <> v.vip_tier_now then 1 else 0 end) as tier_changed,
+        sum(f.cash_handle) as cash_handle
+      from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
+      join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
+      where f.status = 'settled'
+    formats:
+      bets: integer
+      tier_changed: integer
+      cash_handle: currency
+  by_when:
+    sql: |
+      select
+        'at bet' as when_tier,
+        v.vip_tier_at_bet as tier,
+        sum(f.cash_handle) as handle
+      from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
+      join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
+      where f.status = 'settled'
+      group by 1, 2
+      union all
+      select
+        'now',
+        v.vip_tier_now,
+        sum(f.cash_handle)
+      from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
+      join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
+      where f.status = 'settled'
+      group by 1, 2
+    formats:
+      handle: currency
+  changed:
+    sql: |
+      select
+        v.vip_tier_at_bet as at_bet,
+        v.vip_tier_now as now,
+        count(*) as bets,
+        sum(f.cash_handle) as handle
+      from FBG_PREP.GOLD.FCT_BETS_WITH_VIP_TIER v
+      join FBG_PREP.GOLD.FCT_BETS f using (bet_id)
+      where f.status = 'settled'
+        and v.vip_tier_at_bet <> v.vip_tier_now
+      group by 1, 2
+      order by handle desc
+    formats:
+      bets: integer
+      handle: currency
+
+charts:
+  k_bets:
+    type: kpi
+    query: kpis
+    value: bets
+    label: Settled bets
+  k_changed:
+    type: kpi
+    query: kpis
+    value: tier_changed
+    label: Tier changed since bet
+  k_handle:
+    type: kpi
+    query: kpis
+    value: cash_handle
+    label: Cash handle
+  handle_by_tier:
+    type: bar
+    query: by_when
+    x: tier
+    y: handle
+    color: when_tier
+    title: Cash handle by VIP — at bet vs now
+    height: 300
+  changed_table:
+    type: table
+    query: changed
+    title: Bets whose VIP moved after placement
+
+rows:
+  - cols: [k_bets, k_changed, k_handle]
+  - handle_by_tier
+  - changed_table

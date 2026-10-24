@@ -1,0 +1,134 @@
+title: Ops book
+source: duckdb
+text: >
+  Open liability and CX-adjacent gold. Open bets are unsettled (not yet
+  handle). Pending withdrawals have no `current_timestamp` in the model —
+  age them at read time. One-leg-away parlays are the bad-beat / promo
+  eligibility list.
+
+queries:
+  kpis:
+    sql: |
+      select
+        (select coalesce(sum(stake), 0) from {{ ref('fct_bets') }} where status = 'open') as open_stake,
+        (select count(*) from {{ ref('fct_bets') }} where status = 'open') as open_bets,
+        (select coalesce(sum(amount), 0) from {{ ref('dt_pending_withdrawals') }}) as pending_wd_amt,
+        (select count(*) from {{ ref('mart_parlay_one_leg_away') }}) as bad_beats
+    formats:
+      open_stake: currency
+      open_bets: integer
+      pending_wd_amt: currency
+      bad_beats: integer
+  open_by_state:
+    sql: |
+      select
+        state,
+        count(*) as bets,
+        sum(stake) as stake
+      from {{ ref('fct_bets') }}
+      where status = 'open'
+      group by 1
+      order by stake desc
+    formats:
+      bets: integer
+      stake: currency
+  open_by_type:
+    sql: |
+      select
+        bet_type,
+        count(*) as bets,
+        sum(stake) as stake
+      from {{ ref('fct_bets') }}
+      where status = 'open'
+      group by 1
+      order by stake desc
+    formats:
+      bets: integer
+      stake: currency
+  pending_wd:
+    sql: |
+      select
+        payment_id,
+        customer_id,
+        state,
+        vip_tier,
+        method,
+        amount,
+        requested_at
+      from {{ ref('dt_pending_withdrawals') }}
+      order by amount desc
+    formats:
+      amount: currency
+  bad_beats:
+    sql: |
+      select
+        bet_id,
+        customer_id,
+        state,
+        bet_type,
+        stake,
+        legs,
+        parlay_decimal_odds
+      from {{ ref('mart_parlay_one_leg_away') }}
+      order by stake desc
+    formats:
+      stake: currency
+      legs: integer
+      parlay_decimal_odds: number_full
+
+charts:
+  k_open_stake:
+    type: kpi
+    query: kpis
+    value: open_stake
+    label: Open stake
+  k_open_bets:
+    type: kpi
+    query: kpis
+    value: open_bets
+    label: Open bets
+  k_pending:
+    type: kpi
+    query: kpis
+    value: pending_wd_amt
+    label: Pending withdrawals
+  k_beats:
+    type: kpi
+    query: kpis
+    value: bad_beats
+    label: One-leg-away parlays
+  open_state:
+    type: bar
+    query: open_by_state
+    x: state
+    y: stake
+    title: Open stake by state
+    sort:
+      by: stake
+      order: desc
+    height: 260
+  open_type:
+    type: donut
+    query: open_by_type
+    theta: stake
+    color: bet_type
+    title: Open stake by bet type
+    height: 260
+  pending_table:
+    type: table
+    query: pending_wd
+    title: Pending withdrawal queue
+  beats_table:
+    type: table
+    query: bad_beats
+    title: Settled parlays / SGPs that lost exactly one leg
+
+rows:
+  - cols: [k_open_stake, k_open_bets, k_pending, k_beats]
+  - cols:
+      - width: "60%"
+        rows: [open_state]
+      - width: "40%"
+        rows: [open_type]
+  - pending_table
+  - beats_table

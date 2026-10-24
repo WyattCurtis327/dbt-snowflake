@@ -1,0 +1,104 @@
+title: KYC funnel (Snowflake)
+source: snowflake
+text: >
+  Same board as `kyc.yml` on `FBG_PREP.GOLD`. Pass rate is passed /
+  submitted. Load `snowflake/terminal_env.ps1` first.
+
+queries:
+  kpis:
+    sql: |
+      select
+        count(*) as registered,
+        count(first_submit_at) as submitted,
+        count(kyc_passed_at) as passed,
+        count(first_deposit_at) as ftd,
+        count(kyc_passed_at) / nullif(count(first_submit_at), 0) as pass_rate,
+        sum(case when registered_date_et <> registered_date_utc then 1 else 0 end) as et_utc_disagree
+      from FBG_PREP.GOLD.FCT_KYC_FUNNEL
+    formats:
+      registered: integer
+      submitted: integer
+      passed: integer
+      ftd: integer
+      pass_rate: percent
+      et_utc_disagree: integer
+  by_state:
+    sql: |
+      select
+        state,
+        registered,
+        submitted_kyc as submitted,
+        passed_kyc as passed,
+        made_ftd as ftd,
+        ftd_within_24h,
+        kyc_pass_rate as pass_rate,
+        median_min_to_pass
+      from FBG_PREP.GOLD.MART_KYC_FUNNEL_BY_STATE
+      order by registered desc
+    formats:
+      registered: integer
+      submitted: integer
+      passed: integer
+      ftd: integer
+      ftd_within_24h: integer
+      pass_rate: percent
+      median_min_to_pass: integer
+  funnel_steps:
+    sql: |
+      select 'registered' as step, 1 as step_n, count(*) as n from FBG_PREP.GOLD.FCT_KYC_FUNNEL
+      union all
+      select 'submitted', 2, count(first_submit_at) from FBG_PREP.GOLD.FCT_KYC_FUNNEL
+      union all
+      select 'passed', 3, count(kyc_passed_at) from FBG_PREP.GOLD.FCT_KYC_FUNNEL
+      union all
+      select 'first deposit', 4, count(first_deposit_at) from FBG_PREP.GOLD.FCT_KYC_FUNNEL
+      order by 2
+    formats:
+      n: integer
+
+charts:
+  k_registered:
+    type: kpi
+    query: kpis
+    value: registered
+    label: Registered
+  k_pass:
+    type: kpi
+    query: kpis
+    value: pass_rate
+    label: KYC pass rate
+  k_et:
+    type: kpi
+    query: kpis
+    value: et_utc_disagree
+    label: ET vs UTC date mismatch
+  funnel:
+    type: bar
+    query: funnel_steps
+    x: step
+    y: n
+    title: Funnel headcount
+    height: 260
+  pass_by_state:
+    type: bar
+    query: by_state
+    x: state
+    y: pass_rate
+    title: KYC pass rate by state
+    sort:
+      by: pass_rate
+      order: desc
+    height: 260
+  state_table:
+    type: table
+    query: by_state
+    title: Funnel by state
+
+rows:
+  - cols: [k_registered, k_pass, k_et]
+  - cols:
+      - width: "50%"
+        rows: [funnel]
+      - width: "50%"
+        rows: [pass_by_state]
+  - state_table

@@ -2,10 +2,13 @@
 
 YAML dashboards next to the sportsbook models.
 
-| Board | Source | URL when `dct serve --port 8080` |
+| Board | DuckDB | Snowflake `FBG_PREP.GOLD` |
 |---|---|---|
-| `charts/finance.yml` | DuckDB (`sportsbook.duckdb`) | http://localhost:8080/finance/ |
-| `charts/finance_snowflake.yml` | Snowflake `FBG_PREP.GOLD` | http://localhost:8080/finance_snowflake/ |
+| Finance (handle, GGR, hold, NGR) | http://localhost:8080/finance/ | http://localhost:8080/finance_snowflake/ |
+| Payments | http://localhost:8080/payments/ | http://localhost:8080/payments_snowflake/ |
+| KYC funnel | http://localhost:8080/kyc/ | http://localhost:8080/kyc_snowflake/ |
+| VIP at bet time | http://localhost:8080/vip/ | http://localhost:8080/vip_snowflake/ |
+| Ops (open bets, pending WD, bad beats) | http://localhost:8080/ops/ | http://localhost:8080/ops_snowflake/ |
 
 The project venv is Python 3.14; dbt Charts 0.10 needs 3.11–3.13. Use the
 separate `.venv-charts` at the repo root (created with `py -3.12`).
@@ -16,4 +19,6 @@ separate `.venv-charts` at the repo root (created with `py -3.12`).
 ..\.venv-charts\Scripts\dct.exe serve --port 8080
 ```
 
-DuckDB works without `.env`. Snowflake needs the same key-pair env as `dbt debug --target snowflake`.
+DuckDB works without `.env`. Snowflake needs the same key-pair env as
+`dbt debug --target snowflake`. VIP inequality on Snowflake is empty until
+`python snowflake/run.py replay-vip`.
